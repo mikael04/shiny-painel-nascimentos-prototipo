@@ -1,3 +1,4 @@
+# Library ----
 library(shiny)
 ## Layout
 library(bslib)
@@ -15,6 +16,7 @@ projectid = "pdi-covid-basededados"
 
 proj_name <- "`pdi-covid-basededados.sinasc.view_sinasc_a_partir_2020`"
 
+# Consultas iniciais ----
 ## UFS ----
 
 # Set your query
@@ -51,7 +53,7 @@ date_f <- dplyr::distinct(dtnasc, ym, .keep_all = T) |> dplyr::arrange(`__PDI_DT
 cod_ibge_mun <- data.table::fread("data-raw/cod_ibge_mun_ufs.csv") |>
   dplyr::select(cod_ibge, nome_mun, uf, nome_uf)
 
-## UI ----
+# UI ----
 ui <- page_sidebar(
   title = "Painel de monitoramento de Nascidos Vivos",
   sidebar = sidebar(
@@ -105,50 +107,82 @@ ui <- page_sidebar(
       class="botao-filtros",
       shinyWidgets::actionBttn(
         inputId = "addFilters",
-        label = "Adicionar mais filtros",
+        label = "Mais filtros",
+        style = "jelly",
+        color = "primary"
+      ),
+      shinyWidgets::actionBttn(
+        inputId = "applyFilters",
+        label = "Aplicar",
         style = "jelly",
         color = "primary"
       )
     )
   ),
   ## Grid panel ----
-  grid_container(
-    layout = c(
-      "area1  area2",
-      "area3  area3"
-    ),
-    row_sizes = c(
-      "1.03fr",
-      "0.97fr"
-    ),
-    col_sizes = c(
-      "1fr",
-      "1fr"
-    ),
-    gap_size = "10px",
-    grid_card(
-      area = "area1",
-      full_screen = TRUE,
-      card_header("Mapa",
-                  plotOutput("mapa_1"))
-    ),
-    grid_card(
-      area = "area2",
-      full_screen = TRUE,
-      card_header("Área 2")
-    ),
-    grid_card(
-      area = "area3",
-      full_screen = TRUE,
-      card_header("Área 3")
-    )
-  )
+  # grid_container(
+  #   layout = c(
+  #     "area1  area2",
+  #     "area3  area3"
+  #   ),
+  #   row_sizes = c(
+  #     "1.03fr",
+  #     "0.97fr"
+  #   ),
+  #   col_sizes = c(
+  #     "1fr",
+  #     "1fr"
+  #   ),
+  #   gap_size = "10px",
+  #   grid_card(
+  #     area = "area1",
+  #     scroll = TRUE,
+  #     full_screen = TRUE,
+  #     card_header(
+  #                 plotOutput("mapa_1"))
+  #   ),
+  #   grid_card(
+  #     area = "area2",
+  #     scroll = FALSE,
+  #     full_screen = TRUE,
+  #     card_header(
+  #                 plotOutput("geral_1"))
+  #   ),
+  #   grid_card(
+  #     area = "area3",
+  #     full_screen = TRUE,
+  #     card_header(
+  #                 plotOutput("tempo_1"))
+  #   )
+  # )
   # card(
   #
   # )
+  ## Row panel ----
+  div(
+    class="row",
+    div(
+      class="col-6",
+      bslib::card(
+        plotOutput("mapa_1")
+      )
+    ),
+    div(
+      class="col-6",
+      bslib::card(
+        plotOutput("geral_1")
+      )
+    )
+  ),
+  div(
+    class="row",
+    bslib::card(
+      plotOutput("tempo_1")
+    )
+  )
 )
 
-## Server ----
+# Server ----
 server <- function(session, input, output) {
 
   # Dados geográficos ----
@@ -349,7 +383,30 @@ server <- function(session, input, output) {
   df_ufs_nasc_geral <- df_sinasc_2020_2022_ufs_nasc |>
     dplyr::mutate(sigla_uf = cod_uf) |>
     dplyr::group_by(sigla_uf) |>
-    dplyr::summarise(count = sum(count))
+    dplyr::summarise(count = sum(count)) |>
+    dplyr::arrange(count) |>
+    dplyr::ungroup()
+
+  order <- df_ufs_nasc_geral$sigla_uf
+
+  output$geral_1 <- renderPlot({
+    ggplot(df_ufs_nasc_geral) +
+      geom_col(aes(x = sigla_uf, y = count), fill = "#ABA2D1") +
+      theme_minimal() +
+      scale_x_discrete(limits = order) +
+      scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6),
+                         limits=c(0, 1500000)) +
+      labs(
+        title = "Nascimentos por UF",
+        subtitle = "Total da UF de 2020 à 2022 em milhões",
+        y = "",
+        x = " "
+      ) +
+      theme(
+        panel.grid.major = element_blank(),
+        panel.grid.major.x = element_blank()
+      )
+  })
 
   ## Mapa ----
 
@@ -375,7 +432,6 @@ server <- function(session, input, output) {
   })
 
 
-
   ## Série temporal ----
 
   ### Adicionando colunas de datas
@@ -383,10 +439,42 @@ server <- function(session, input, output) {
     dplyr::mutate(year = substr(ano_mes, 1, 4),
                   month = substr(ano_mes, 5, 6),
                   date = lubridate::ym(ano_mes),
-                  ym = format(as.Date(date), "%m-%Y"))
+                  ym = format(as.Date(date), "%m-%Y")) |>
+    dplyr::group_by(date) |>
+    dplyr::summarise(count = sum(count)) |>
+    dplyr::ungroup() |>
+    dplyr::filter(date < as.Date("2022-07-01"))
 
+
+  axis_x <- seq(from = lubridate::ymd(min(df_sinasc_tempo$date)),
+                to = lubridate::ymd(max(df_sinasc_tempo$date)),
+                by = "3 month")
+
+  # browser()
+  output$tempo_1 <- renderPlot({
+    ggplot(df_sinasc_tempo) +
+      geom_line(aes(x = date, y = count)) +
+      theme_minimal() +
+      scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3)) +
+      scale_x_date(breaks = axis_x, labels = scales::date_format("%b-%y")) +
+      labs(
+        title = "Nascimentos no país por mês",
+        y = "",
+        x = " "
+      ) +
+      theme(
+        panel.grid.major = element_blank(),
+        panel.grid.major.x = element_blank()
+      )
+    })
 
   # Gráficos reativos ----
+
+  observeEvent(input$applyFilters,{
+    browser()
+    # df_filtered <- df_sinasc_2020_2022 |>
+    #   dplyr::group_by(`__PDI_DTNASC_ANO_MES`)
+  })
 }
 
 shinyApp(ui, server)
