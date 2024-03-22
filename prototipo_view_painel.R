@@ -14,48 +14,48 @@ library(DBI)
 
 projectid = "pdi-covid-basededados"
 
-proj_name <- "`pdi-covid-basededados.sinasc.view_sinasc_a_partir_2020`"
+proj_name <- "`pdi-covid-basededados.paineis.view_sinasc_tratamento_painel`"
 
 # Consultas iniciais ----
 ## UFS ----
 
 # Set your query
-sql <- paste0("SELECT DISTINCT __PDI_UF FROM ", proj_name)
+sql <- paste0("SELECT DISTINCT _UF FROM ", proj_name)
 
 # Run the query; this returns a bq_table object that you can query further
 tb <- bq_project_query(projectid, sql)
 
 ufs_f <- bq_table_download(tb) |>
-  dplyr::arrange(`__PDI_UF`) |>
+  dplyr::arrange(`_UF`) |>
   dplyr::pull()
+
+# df_ufs <- data.table::fread("data-raw/pop-2022-est-ibge.csv")
 
 ## Datas ----
 
 # Set your query
-sql <- paste0("SELECT DISTINCT __PDI_DTNASC_ANO_MES FROM ", proj_name)
+sql <- paste0("SELECT DISTINCT _ANONASC FROM ", proj_name)
 
 # Run the query; this returns a bq_table object that you can query further
 tb <- bq_project_query(projectid, sql)
 
-dtnasc <- bq_table_download(tb)
+anos_nasc <- bq_table_download(tb) |>
+  dplyr::collect()
 
-dtnasc <- dtnasc |>
-  dplyr::mutate(year = substr(`__PDI_DTNASC_ANO_MES`, 1, 4),
-                month = substr(`__PDI_DTNASC_ANO_MES`, 5, 6),
-                date = lubridate::ym(`__PDI_DTNASC_ANO_MES`),
-                ym = format(as.Date(date), "%m-%Y"))
-
-years_f <- dplyr::distinct(dtnasc, year) |> dplyr::arrange(year) |> dplyr::pull()
-months_f <- dplyr::distinct(dtnasc, month) |> dplyr::arrange(month)  |> dplyr::pull()
-# date = dplyr::distinct(dtnasc, date) |> dplyr::arrange(date)  |> dplyr::pull()
-date_f <- dplyr::distinct(dtnasc, ym, .keep_all = T) |> dplyr::arrange(`__PDI_DTNASC_ANO_MES`)  |> dplyr::pull(ym)
+years_f <- anos_nasc |> dplyr::arrange(anos_nasc) |>  dplyr::pull()
 
 cod_ibge_mun <- data.table::fread("data-raw/cod_ibge_mun_ufs.csv") |>
   dplyr::select(cod_ibge, nome_mun, uf, nome_uf)
 
 # UI ----
 ui <- page_sidebar(
+  ## CSS ----
+  tags$head(
+    tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+  ),
+  ## Título ----
   title = "Painel de monitoramento de Nascidos Vivos",
+  ## Sidebar ----
   sidebar = sidebar(
     width = 350,
     # varSelectInput(
@@ -180,7 +180,7 @@ ui <- page_sidebar(
       div(
         class="row",
         bslib::card(
-          bslib::card_header("Filtre por UF ou região"),
+          # bslib::card_header("Filtre por UF ou região"),
           layout_sidebar(
             sidebar = sidebar(
               id="first_graph_sidebar",
@@ -203,11 +203,12 @@ ui <- page_sidebar(
     nav_panel(
       "Univariada 2",
       bslib::card(
+        card_header("Taxa de nascimento por UF", class="title-map"),
         div(
           class="row",
           div(
             class="col-6",
-            plotOutput("mapa_1")
+            plotOutput("mapa_2")
           ),
           div(
             class="col-6",
@@ -218,7 +219,6 @@ ui <- page_sidebar(
     ),
     nav_panel(
       "Bivariada",
-
     )
 
   )
@@ -235,16 +235,16 @@ server <- function(session, input, output) {
     dplyr::select(cod_stt, geometry)
   ## Dados ibge municípios
   df_mun <- data.table::fread("data-raw/ibge-dados-municipais-tratados.csv")
-  df_uf <- data.table::fread("data-raw/ibge-dados-ufs-tratados.csv")
+  df_ufs <- data.table::fread("data-raw/ibge-ufs-pop-2022-est.csv")
 
   # Bigrquery ----
   con <- dbConnect(
     bigrquery::bigquery(),
     project = "pdi-covid-basededados",
-    dataset = "sinasc"
+    dataset = "paineis"
   )
 
-  df_sinasc_2020_2022 <- tbl(con, "view_sinasc_a_partir_2020")
+  df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
 
 
   # Filtros reativos ----
@@ -410,37 +410,49 @@ server <- function(session, input, output) {
   observeEvent(input$close, {
     removeModal()
   })
-  # Gráficos iniciais ----
+  # Univariada 1 -----
+  ## Gráficos iniciais ----
 
-  ## Contagem de nascimentos por estados e por data (ano_mes)
-  df_sinasc_2020_2022_ufs_nasc <- df_sinasc_2020_2022 |>
-    dplyr::group_by(`__PDI_UF`, `__PDI_DTNASC_ANO_MES`) |>
+  # browser()
+  ## Contagem de nascimentos por estados e por data (ano_nasc)
+  df_sinasc_ufs_nasc <- df_sinasc  |>
+    dplyr::group_by(`_UF`, `_ANONASC`) |>
     dplyr::summarise(count = n()) |>
-    dplyr::select(cod_uf = `__PDI_UF`, ano_mes = `__PDI_DTNASC_ANO_MES`, count) |>
+    dplyr::select(uf_cod = `_UF`, ano_nasc = `_ANONASC`, count) |>
     dplyr::ungroup() |>
     dplyr::collect()
 
+  df_sinasc_ufs_nasc <- dplyr::inner_join(df_ufs, df_sinasc_ufs_nasc,
+                    by=c("uf_sigla" = "uf_cod"))
 
-  ## Gráfico de barras ----
-  df_ufs_nasc_geral <- df_sinasc_2020_2022_ufs_nasc |>
-    dplyr::mutate(sigla_uf = cod_uf) |>
-    dplyr::group_by(sigla_uf) |>
-    dplyr::summarise(count = sum(count)) |>
+
+  ### Gráfico de barras ----
+  df_ufs_nasc_geral <- df_sinasc_ufs_nasc |>
+    dplyr::group_by(uf_sigla) |>
+    dplyr::mutate(count = sum(count)) |>
+    dplyr::distinct(uf_sigla, .keep_all = T) |>
     dplyr::arrange(count) |>
-    dplyr::ungroup()
+    dplyr::ungroup() |>
+    dplyr::select(-ano_nasc)
 
-  order <- df_ufs_nasc_geral$sigla_uf
+  ## Adicionando proporção em relação à população ----
+  df_ufs_nasc_geral <- df_ufs_nasc_geral |>
+    dplyr::mutate(taxa_nasc = count*1000/populacao) |>
+    dplyr::arrange(taxa_nasc)
+
+  order <- df_ufs_nasc_geral$uf_sigla
 
   output$geral_1 <- renderPlot({
     ggplot(df_ufs_nasc_geral) +
-      geom_col(aes(x = sigla_uf, y = count), fill = "#ABA2D1") +
+      geom_col(aes(x = uf_sigla, y = taxa_nasc), fill = "#ABA2D1") +
       theme_minimal() +
       scale_x_discrete(limits = order) +
-      scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6),
-                         limits=c(0, 1500000)) +
+      # scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6),
+      #                    # limits=c(0, 1500000)
+      #                    ) +
       labs(
-        title = "Nascimentos por UF",
-        subtitle = "Total da UF de 2020 à 2022 em milhões",
+        title = "Taxa de Nascimentos por mil nas UF",
+        subtitle = "Nascimentos de 1996 à 2022",
         y = "",
         x = " "
       ) +
@@ -450,14 +462,12 @@ server <- function(session, input, output) {
       )
   })
 
-  ## Mapa ----
+  ### Mapa ----
 
   ### Unindo com dados espaciais
   df_ufs_nasc_mapa <- df_ufs_nasc_geral |>
-    dplyr::inner_join(df_uf |> dplyr::select(cod_uf, sigla_uf),
-                      by=c("sigla_uf")) |>
-    dplyr::inner_join(uf_sf, by=c("cod_uf" = "cod_stt")) |>
-    dplyr::select(cod_uf, sigla_uf, count, geometry) |>
+    dplyr::inner_join(uf_sf, by=c("uf_cod" = "cod_stt")) |>
+    dplyr::select(uf_cod, uf_sigla, taxa_nasc, geometry) |>
     sf::st_as_sf()
 
   df_ufs_nasc_mapa <- sf::st_transform(df_ufs_nasc_mapa, crs = '+proj=longlat
@@ -465,42 +475,45 @@ server <- function(session, input, output) {
 
   output$mapa_1 <- renderPlot({
     ggplot_map <- ggplot(df_ufs_nasc_mapa) +
-      geom_sf(aes(fill = count)) +
+      geom_sf(aes(fill = taxa_nasc)) +
       theme_void() +
-      scale_fill_gradient2()
+      scale_fill_gradient2() +
+      ggtitle("Taxa de nascimento por UF")
 
     ## Saída
     ggplot_map
   })
 
 
-  ## Série temporal ----
+
+
+  ### Série temporal ----
 
   ### Adicionando colunas de datas
-  df_sinasc_tempo <- df_sinasc_2020_2022_ufs_nasc |>
-    dplyr::mutate(year = substr(ano_mes, 1, 4),
-                  month = substr(ano_mes, 5, 6),
-                  date = lubridate::ym(ano_mes),
-                  ym = format(as.Date(date), "%m-%Y")) |>
-    dplyr::group_by(date) |>
-    dplyr::summarise(count = sum(count)) |>
+  df_sinasc_tempo <- df_sinasc_ufs_nasc |>
+    dplyr::group_by(ano_nasc) |>
+    dplyr::mutate(count = sum(count)) |>
+    dplyr::distinct(ano_nasc, .keep_all = T) |>
     dplyr::ungroup() |>
-    dplyr::filter(date < as.Date("2022-07-01"))
+    dplyr::select(-uf_nome, -uf_sigla,  -uf_cod, -populacao) |>
+    dplyr::arrange(ano_nasc) |>
+    dplyr::mutate(ano_nasc = lubridate::as_date(paste0(ano_nasc, "-01-01")))
 
 
-  axis_x <- seq(from = lubridate::ymd(min(df_sinasc_tempo$date)),
-                to = lubridate::ymd(max(df_sinasc_tempo$date)),
-                by = "3 month")
+  axis_x <- seq(from = lubridate::ymd(min(df_sinasc_tempo$ano_nasc)),
+                to = lubridate::ymd(max(df_sinasc_tempo$ano_nasc)),
+                by = "2 years")
 
-  # browser()
+  browser()
   output$tempo_1 <- renderPlot({
     ggplot(df_sinasc_tempo) +
-      geom_line(aes(x = date, y = count)) +
+      geom_line(aes(x = ano_nasc, y = count)) +
       theme_minimal() +
-      scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3)) +
-      scale_x_date(breaks = axis_x, labels = scales::date_format("%b-%y")) +
+      scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6),
+                         limits=c(0, 4000000)) +
+      scale_x_date(breaks = axis_x, labels = scales::date_format("%Y")) +
       labs(
-        title = "Nascimentos no país por mês",
+        title = "Nascimentos por ano",
         y = "",
         x = " "
       ) +
@@ -508,18 +521,45 @@ server <- function(session, input, output) {
         panel.grid.major = element_blank(),
         panel.grid.major.x = element_blank()
       )
-    })
+  })
 
-  # Gráficos reativos ----
+  ## Gráficos reativos ----
 
   observeEvent(input$applyFilters,{
     browser()
 
   })
 
-  # Tabela UF ----
+  # Univariada 2 ----
+
+  ## Mapa 2 ----
+  output$mapa_2 <- renderPlot({
+    ggplot_map <- ggplot(df_ufs_nasc_mapa) +
+      geom_sf(aes(fill = taxa_nasc)) +
+      theme_void() +
+      scale_fill_gradient2()
+
+    ## Saída
+    ggplot_map
+  })
+
+  ## Tabela UF ----
   output$tabela_uf <- gt::render_gt({
-    browser()
+    # browser()
+    tabela_nasc <- df_ufs_nasc_geral |>
+      dplyr::select(uf_nome, taxa_nasc, count, populacao) |>
+      gt::gt() |>
+      gt::cols_label(
+        uf_nome = gt::md("UF"),
+        taxa_nasc = gt::md("Taxa de nascimentos"),
+        populacao = gt::md("População"),
+        count = gt::md("Total")
+      ) |>
+      gt::opt_interactive(use_compact_mode = TRUE,
+                          use_search = TRUE)
+      # gt::cols_align(align = "center", columns = nanoplots)
+
+    tabela_nasc
   })
 }
 

@@ -3,6 +3,7 @@ library(dplyr)
 library(dbplyr)
 library(DBI)
 
+# Query da primeira versão ----
 projectid = "pdi-covid-basededados"
 
 # Set your query
@@ -149,21 +150,57 @@ df_sinasc_2020_2022_ufs_nasc <- df_sinasc_2020_2022 |>
 # ## Escrevendo dados
 # data.table::fwrite(df_ibge_uf, "data-raw/ibge-dados-ufs-tratados.csv")
 
+# Nova base ----
+
+projectid = "pdi-covid-basededados"
+
+proj_name <- "`pdi-covid-basededados.paineis.view_sinasc_tratamento_painel`"
+
+# Consultas iniciais ----
+## UFS ----
+
+# Set your query
+sql <- paste0("SELECT DISTINCT _UF FROM ", proj_name)
+
+# Run the query; this returns a bq_table object that you can query further
+tb <- bq_project_query(projectid, sql)
+
+ufs_f <- bq_table_download(tb) |>
+  dplyr::arrange(`_UF`) |>
+  dplyr::pull()
+
+## Datas ----
+
+# Set your query
+sql <- paste0("SELECT DISTINCT _ANONASC FROM ", proj_name)
+
+# Run the query; this returns a bq_table object that you can query further
+tb <- bq_project_query(projectid, sql)
+
+anos_nasc <- bq_table_download(tb)
+
+# Bigrquery ----
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "pdi-covid-basededados",
+  dataset = "paineis"
+)
+
+df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
+
+## Contagem de nascimentos por estados e por data (ano_mes)
+df_sinasc_ufs_nasc <- df_sinasc |>
+  dplyr::mutate(uf = `_UF`, ano_nasc = `_ANONASC`) |>
+  dplyr::group_by(uf, ano_nasc) |>
+  dplyr::summarise(count = n()) |>
+  dplyr::select(cod_uf = uf, ano_nasc, count) |>
+  dplyr::ungroup() |>
+  dplyr::collect()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+df_sinasc_2020_2022_ufs_nasc <- df_sinasc |>
+  dplyr::slice_sample(n = 1000) |>
+  dplyr::collect()
 
 
 
