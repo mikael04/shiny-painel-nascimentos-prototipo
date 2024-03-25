@@ -188,7 +188,7 @@ con <- dbConnect(
 
 df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
 
-## Contagem de nascimentos por estados e por data (ano_mes)
+## Contagem de nascimentos por estados e por data (ano_mes) -----
 df_sinasc_ufs_nasc <- df_sinasc |>
   dplyr::mutate(uf = `_UF`, ano_nasc = `_ANONASC`) |>
   dplyr::group_by(uf, ano_nasc) |>
@@ -202,10 +202,34 @@ df_sinasc_2020_2022_ufs_nasc <- df_sinasc |>
   dplyr::slice_sample(n = 1000) |>
   dplyr::collect()
 
+## Consulta bivariada ----
+### Usando a conexão recentemente feita com o big query
+df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
 
+## Fazer uma busca com os dados de das colunas APGAR1 e _FXETARIAMAE
+### criando uma contagem do número de linhas com group_by e summarise
+### E filtrando valores de `APGAR1` menores ou iguais a 10
 
+df_sinasc_apgar_idade <- df_sinasc |>
+  dplyr::select(`APGAR1`, `_FXETARIAMAE`) |>
+  dplyr::mutate(`APGAR1` = as.numeric(`APGAR1`)) |>
+  dplyr::group_by(`APGAR1`, `_FXETARIAMAE`) |>
+  dplyr::summarise(count = n()) |>
+  dplyr::ungroup() |>
+  dplyr::select(apgar1 = `APGAR1`, idademae = `_FXETARIAMAE`, count) |>
+  dplyr::filter(apgar1 <= 10) |>
+  dplyr::collect() |>
+  dplyr::arrange(apgar1, idademae)
 
+df_sinasc_apgar_idade <- df_sinasc_apgar_idade |>
+  dplyr::collect()
 
+## Ordene o dataframe df_sinasc_apgar_idade por apgar1 e idademae
+df_sinasc_apgar_idade <- df_sinasc_apgar_idade |>
+  dplyr::arrange(apgar1, idademae)
+
+library(dplyr)
+library(tidyr)
 
 
 

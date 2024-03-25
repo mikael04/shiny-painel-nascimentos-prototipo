@@ -8,9 +8,23 @@ library(ggplot2)
 ## Manipulação de dados
 library(dplyr)
 library(dbplyr)
+library(tidyr)
 ## Comunicação com o banco de dados
 library(bigrquery)
 library(DBI)
+## Pacote para tabelas
+library(gt)
+library(reactable)
+
+## Definindo opções de idiomas para tabelas
+options(reactable.language = reactableLang(
+  pageSizeOptions = "\u663e\u793a {rows}",
+  pageInfo = "{rowStart} \u81f3 {rowEnd} \u9879\u7ed3\u679c,\u5171 {rows} \u9879",
+  pagePrevious = "\u4e0a\u9875",
+  pageNext = "\u4e0b\u9875"
+))
+
+ # nolint: line_length_linter.
 
 projectid = "pdi-covid-basededados"
 
@@ -202,23 +216,48 @@ ui <- page_sidebar(
 
     nav_panel(
       "Univariada 2",
-      bslib::card(
-        card_header("Taxa de nascimento por UF", class="title-map"),
+      div(
+        class="row",
         div(
-          class="row",
-          div(
-            class="col-6",
+          class="col-6",
+          bslib::card(
             plotOutput("mapa_2")
-          ),
-          div(
-            class="col-6",
+          )
+        ),
+        div(
+          class="col-6",
+          bslib::card(
             gt::gt_output("tabela_uf")
+          )
+        )
+      ),
+      div(
+        class="row",
+        bslib::card(
+          layout_sidebar(
+            sidebar = sidebar(
+              id="sidebar_hist",
+              title = "Filtre a UF ou região",
+              position = "left", open = TRUE,
+              shinyWidgets::pickerInput(
+                label = "Selecione a UF",
+                inputId = "filter_sidebar_hist",
+                choices = c("TODOS", ufs_f),
+                selected = "TODOS",
+              )
+            ),
+            ggiraph::girafeOutput("histograma"),
+            border = FALSE
           )
         )
       )
     ),
     nav_panel(
       "Bivariada",
+      bslib::card(
+        card_header("Apgar no 1° minuto por idade da mãe", class="title-center"),
+        gt::gt_output("tabela_bivariada")
+      )
     )
 
   )
@@ -304,7 +343,7 @@ server <- function(session, input, output) {
         shinyWidgets::pickerInput(
           label = "Selecione uma variável para cruzamento",
           inputId = "var_sel_2",
-          choices = c("A", "B", "C"),
+          choices = c("Idade da mãe", "Escolaridade da mãe", "C"),
         )
       })
     }else{
@@ -484,9 +523,6 @@ server <- function(session, input, output) {
     ggplot_map
   })
 
-
-
-
   ### Série temporal ----
 
   ### Adicionando colunas de datas
@@ -504,7 +540,6 @@ server <- function(session, input, output) {
                 to = lubridate::ymd(max(df_sinasc_tempo$ano_nasc)),
                 by = "2 years")
 
-  browser()
   output$tempo_1 <- renderPlot({
     ggplot(df_sinasc_tempo) +
       geom_line(aes(x = ano_nasc, y = count)) +
@@ -521,13 +556,6 @@ server <- function(session, input, output) {
         panel.grid.major = element_blank(),
         panel.grid.major.x = element_blank()
       )
-  })
-
-  ## Gráficos reativos ----
-
-  observeEvent(input$applyFilters,{
-    browser()
-
   })
 
   # Univariada 2 ----
@@ -548,7 +576,7 @@ server <- function(session, input, output) {
     # browser()
     tabela_nasc <- df_ufs_nasc_geral |>
       dplyr::select(uf_nome, taxa_nasc, count, populacao) |>
-      gt::gt() |>
+      gt::gt(locale = "pt") |>
       gt::cols_label(
         uf_nome = gt::md("UF"),
         taxa_nasc = gt::md("Taxa de nascimentos"),
@@ -561,6 +589,108 @@ server <- function(session, input, output) {
 
     tabela_nasc
   })
+
+  # browser()
+  ## Histograma c/ seletor ----
+  # browser()
+  ## Crie um gráfico de histograma com os dados de df_sinasc_ufs_nasc, agrupando por ano_nasc
+  ## e contando o número de linhas
+  df_sinasc_ufs_nasc_hist <- df_sinasc_ufs_nasc |>
+    dplyr::group_by(ano_nasc) |>
+    dplyr::summarise(count = sum(count)) |>
+    dplyr::ungroup()
+  # Criar um output shiny do tipo ggiraph com um gráfico de histograma
+  output$histograma <- ggiraph::renderGirafe({
+    # Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist
+    # usando os dados de ano_nasc e count como tooltip
+    graph_hist <- df_sinasc_ufs_nasc_hist |>
+      ggplot2::ggplot() +
+      ggplot2::labs(title = "Nascimentos por ano",
+                    x = "",
+                    y = "") +
+      ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6))  +
+      ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
+      ggplot2::theme_minimal() +
+      ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+                                    aes(x = ano_nasc, y = count, tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+
+    ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
+  })
+
+
+  ## Gráficos reativos ----
+
+  ### Histograma ----
+
+  observeEvent(input$filter_sidebar_hist, {
+    if(input$filter_sidebar_hist != "TODOS"){
+      # browser()
+      df_sinasc_ufs_nasc_hist_filt <- df_sinasc_ufs_nasc |>
+        dplyr::filter(uf_sigla == input$filter_sidebar_hist) |>
+        dplyr::group_by(ano_nasc) |>
+        dplyr::summarise(count = sum(count)) |>
+        dplyr::ungroup()
+      ## Criar um update output para o gráfico de histograma
+      output$histograma <- ggiraph::renderGirafe({
+        ## Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
+        ## usando os dados de ano_nasc e count como tooltip
+        graph_hist <- df_sinasc_ufs_nasc_hist_filt |>
+          ggplot2::ggplot() +
+          ggplot2::labs(title = "Nascimentos por ano",
+                        x = "",
+                        y = "") +
+          ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3))  +
+          ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
+          ggplot2::theme_minimal() +
+          ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+                                        aes(x = ano_nasc, y = count, tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+
+        ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
+      })
+    }
+
+  })
+
+
+
+  # Bivariada ----
+  ## Fazer uma busca com os dados de das colunas APGAR1 e IDADEMAE criando uma contagem do número de linhas com group_by e summarise
+  df_sinasc_apgar_idade <- df_sinasc |>
+    dplyr::select(`APGAR1`, `_FXETARIAMAE`) |>
+    dplyr::mutate(`APGAR1` = as.numeric(`APGAR1`)) |>
+    dplyr::group_by(`APGAR1`, `_FXETARIAMAE`) |>
+    dplyr::summarise(count = n()) |>
+    dplyr::ungroup() |>
+    dplyr::select(apgar1 = `APGAR1`, idademae = `_FXETARIAMAE`, count) |>
+    dplyr::filter(apgar1 <= 10) |>
+    dplyr::collect() |>
+    dplyr::arrange(apgar1, idademae)
+
+
+  ## Fazer um pivot_wider usando a coluna idade_mae como coluna e count como valor
+  df_sinasc_apgar_idade_wide <- df_sinasc_apgar_idade |>
+    tidyr::pivot_wider(names_from = idademae, values_from = count) |>
+    dplyr::mutate(across(everything(), ~replace_na(., 0))) |>
+    dplyr::mutate(across(everything(), as.integer))
+
+  # browser()
+  ## Tabela bivariada ----
+  ## Criar uma tabela gt de output com os dados de df_sinasc_apgar_idade_wide
+  output$tabela_bivariada <- gt::render_gt({
+    tabela_bivariada <- df_sinasc_apgar_idade_wide |>
+      gt::gt(locale = "pt") |>
+      gt::cols_label(
+        apgar1 = gt::md("Apgar no 1° minuto"),
+      ) |>
+      gt::cols_move(
+        columns = `Menor de 14 anos`,
+        after = apgar1
+      ) |>
+      gt::opt_interactive(use_compact_mode = TRUE)
+    tabela_bivariada
+  })
+
+
 }
 
 shinyApp(ui, server)
