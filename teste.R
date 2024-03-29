@@ -231,13 +231,31 @@ df_sinasc_apgar_idade <- df_sinasc_apgar_idade |>
 library(dplyr)
 library(tidyr)
 
+output$histograma <- ggiraph::renderGirafe({
+  ## Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
+  ## usando os dados de ano_nasc e count como tooltip
+  graph_hist <- df_sinasc_ufs_nasc_hist_filt |>
+    ggplot2::ggplot() +
+    ggplot2::labs(title = "Nascimentos por ano",
+                  x = "",
+                  y = "") +
+    ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3))  +
+    ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
+    ggplot2::theme_minimal() +
+    ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+                                  aes(x = ano_nasc, y = count, fill = "#ABA2D1",
+                                      tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+
+  ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
+})
 
 
 
 
 
-
-
+# How can i solve this error:
+# `geom_path()`: Each group consists of only one observation.
+# ℹ Do you need to adjust the group aesthetic?
 
 
 

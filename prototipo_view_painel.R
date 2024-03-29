@@ -43,6 +43,8 @@ ufs_f <- bq_table_download(tb) |>
   dplyr::arrange(`_UF`) |>
   dplyr::pull()
 
+regioes_f <- c("Norte", "Nordeste", "Sudeste", "Sul", "Centro-Oeste")
+
 # df_ufs <- data.table::fread("data-raw/pop-2022-est-ibge.csv")
 
 ## Datas ----
@@ -174,6 +176,7 @@ ui <- page_sidebar(
   # )
   ## Row panel ----
   page_navbar(
+    ### Univariada 1 ----
     nav_panel(
       "Univariada 1",
       div(
@@ -198,22 +201,25 @@ ui <- page_sidebar(
           layout_sidebar(
             sidebar = sidebar(
               id="first_graph_sidebar",
-              title = "Filtre a UF ou região",
+              title = "Selecione a Região ou UF",
               position = "left", open = TRUE,
               shinyWidgets::pickerInput(
-                label = "Selecione a UF",
-                inputId = "first_graph_sidebar",
-                choices = c("TODOS", ufs_f),
+                inputId = "filter_sidebar_serie",
+                choices = list(
+                  `Todos` = "TODOS",
+                  `Regiões` = regioes_f,
+                  `UFs` = ufs_f),
                 selected = "TODOS",
               )
             ),
-            plotOutput("tempo_1"),
+            ggiraph::girafeOutput("tempo_1"),
+            # plotOutput("tempo_1"),
             border = FALSE
           )
         ),
       )
     ),
-
+    ### Univariada 2 ----
     nav_panel(
       "Univariada 2",
       div(
@@ -240,9 +246,11 @@ ui <- page_sidebar(
               title = "Filtre a UF ou região",
               position = "left", open = TRUE,
               shinyWidgets::pickerInput(
-                label = "Selecione a UF",
                 inputId = "filter_sidebar_hist",
-                choices = c("TODOS", ufs_f),
+                choices = list(
+                  `Todos` = "TODOS",
+                  `Regiões` = regioes_f,
+                  `UFs` = ufs_f),
                 selected = "TODOS",
               )
             ),
@@ -252,6 +260,7 @@ ui <- page_sidebar(
         )
       )
     ),
+    ### Bivariada ----
     nav_panel(
       "Bivariada",
       bslib::card(
@@ -531,7 +540,7 @@ server <- function(session, input, output) {
     dplyr::mutate(count = sum(count)) |>
     dplyr::distinct(ano_nasc, .keep_all = T) |>
     dplyr::ungroup() |>
-    dplyr::select(-uf_nome, -uf_sigla,  -uf_cod, -populacao) |>
+    dplyr::select(-uf_nome, -uf_sigla, -uf_reg, -uf_cod, -populacao) |>
     dplyr::arrange(ano_nasc) |>
     dplyr::mutate(ano_nasc = lubridate::as_date(paste0(ano_nasc, "-01-01")))
 
@@ -540,10 +549,10 @@ server <- function(session, input, output) {
                 to = lubridate::ymd(max(df_sinasc_tempo$ano_nasc)),
                 by = "2 years")
 
-  output$tempo_1 <- renderPlot({
-    ggplot(df_sinasc_tempo) +
-      geom_line(aes(x = ano_nasc, y = count)) +
-      theme_minimal() +
+  output$tempo_1 <- ggiraph::renderGirafe({
+    graph_tempo <- df_sinasc_tempo |>
+      ggplot() +
+      theme_minimal()+
       scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6),
                          limits=c(0, 4000000)) +
       scale_x_date(breaks = axis_x, labels = scales::date_format("%Y")) +
@@ -555,7 +564,69 @@ server <- function(session, input, output) {
       theme(
         panel.grid.major = element_blank(),
         panel.grid.major.x = element_blank()
-      )
+      ) +
+      ggiraph::geom_line_interactive(aes(x = ano_nasc, y = count, group = 1,
+                                         tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ",  format(count, nsmall=1, big.mark=".", decimal.mark = ",") )))
+
+
+    ggiraph::girafe(ggobj = graph_tempo, width_svg = 6, height_svg = 4)
+  })
+
+  #### Reativo -----
+  observeEvent(input$filter_sidebar_serie, {
+    if(input$filter_sidebar_serie != "TODOS"){
+      ## Se é uma região
+      if(input$filter_sidebar_serie %in% regioes_f){
+        df_sinasc_tempo_per_reg <- df_sinasc_ufs_nasc |>
+          dplyr::filter(uf_reg == input$filter_sidebar_serie)
+      ## Senão, é uma UF
+      }else{
+        df_sinasc_tempo_per_reg <- df_sinasc_ufs_nasc |>
+          dplyr::filter(uf_sigla == input$filter_sidebar_serie)
+      }
+      df_sinasc_tempo_per_reg <- df_sinasc_tempo_per_reg |>
+        dplyr::group_by(ano_nasc) |>
+        dplyr::summarise(count = sum(count)) |>
+        dplyr::ungroup() |>
+        dplyr::arrange(ano_nasc) |>
+        dplyr::mutate(ano_nasc = lubridate::as_date(paste0(ano_nasc, "-01-01")))
+
+      max_character <- as.character(max(df_sinasc_tempo_per_reg$count))
+      casas <- as.integer(substr(max_character, 1, 1))+1
+      size <- nchar(max_character)
+      ceiling(as.integer(paste0("1e", as.integer(casas))))
+
+      max <- casas*as.double(paste0("1e", size))
+
+      # browser()
+
+      ## Criar um update output para o gráfico de série temporal
+      output$tempo_1 <- ggiraph::renderGirafe({
+        ## Crie um gráfico de série temporal do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
+        ## usando os dados de ano_nasc e count como tooltip
+        graph_tempo <- df_sinasc_tempo_per_reg |>
+          ggplot() +
+          theme_minimal()+
+          scale_y_continuous(labels = scales::unit_format(unit = ifelse(size > 4, "M", "mil"),
+                                                          scale = ifelse(size > 4, 1e-6, 1e-3)),
+                             limits=c(0, max)) +
+          scale_x_date(breaks = axis_x, labels = scales::date_format("%Y")) +
+          labs(
+            title = paste("Nascimentos por ano ", "no(a) ", input$filter_sidebar_serie),
+            y = "",
+            x = " "
+          ) +
+          theme(
+            panel.grid.major = element_blank(),
+            panel.grid.major.x = element_blank()
+          ) +
+          ggiraph::geom_line_interactive(aes(x = ano_nasc, y = count, group = 1,
+                                             tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ",  format(count, nsmall=1, big.mark=".", decimal.mark = ",") )))
+
+
+        ggiraph::girafe(ggobj = graph_tempo, width_svg = 6, height_svg = 4)
+      })
+    }
   })
 
   # Univariada 2 ----
@@ -611,7 +682,7 @@ server <- function(session, input, output) {
       ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6))  +
       ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
       ggplot2::theme_minimal() +
-      ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+      ggiraph::geom_bar_interactive(stat = "identity", width = 1, fill = "#ABA2D1",
                                     aes(x = ano_nasc, y = count, tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
 
     ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
@@ -621,7 +692,6 @@ server <- function(session, input, output) {
   ## Gráficos reativos ----
 
   ### Histograma ----
-
   observeEvent(input$filter_sidebar_hist, {
     if(input$filter_sidebar_hist != "TODOS"){
       # browser()
@@ -643,12 +713,12 @@ server <- function(session, input, output) {
           ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
           ggplot2::theme_minimal() +
           ggiraph::geom_bar_interactive(stat = "identity", width = 1,
-                                        aes(x = ano_nasc, y = count, tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+                                        aes(x = ano_nasc, y = count, fill = "#ABA2D1",
+                                            tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
 
         ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
       })
     }
-
   })
 
 
