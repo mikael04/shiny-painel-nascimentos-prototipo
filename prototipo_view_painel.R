@@ -84,18 +84,18 @@ ui <- page_sidebar(
       choices = c("Nascidos vivos por residência", "Nascidos vivos por ocorrência")
     ),
     shinyWidgets::pickerInput(
+      label = "Ano de referência",
+      inputId = "year",
+      choices = c("TODOS", years_f),
+      selected = years_f[length(years_f)],
+    ),
+    shinyWidgets::pickerInput(
       label = "Abrangência",
       inputId = "abrang",
       choices = c("País", "Região", "Unidade da federação", "Mesorregião",
                   "Microregião", "Macroregião de saúde", "Região de saúde",
                   "Município"),
       selected = "País",
-    ),
-    shinyWidgets::pickerInput(
-      label = "Ano de referência",
-      inputId = "year",
-      choices = c("TODOS", years_f),
-      selected = years_f[length(years_f)],
     ),
     uiOutput("extra_geoloc_1"),
     uiOutput("extra_geoloc_2"),
@@ -296,6 +296,7 @@ server <- function(session, input, output) {
 
 
   # Filtros reativos ----
+  ## Geolocalização ----
   observeEvent(input$abrang, {
     if(input$abrang == "País"){
       output$extra_geoloc_1 <- NULL
@@ -721,6 +722,101 @@ server <- function(session, input, output) {
     }
   })
 
+  ### Mapa e tabela ----
+  ### Reativos à filtro lateral
+
+  observeEvent(input$applyFilters, {
+    #### Filtro ano ----
+    ano_sel <- input$year
+
+    df_sinasc_filt <- df_sinasc |>
+      dplyr::filter(ano_nasc == ano_sel)
+
+    #### País ----
+    if(input$abrang == "País"){
+      df_sinasc_filt <- df_sinasc_filt
+      ### Unindo com dados espaciais
+      df_sinasc_filt_mapa <- df_sinasc_filt |>
+        dplyr::inner_join(uf_sf, by=c("_UF" = "cod_stt")) |>
+        sf::st_as_sf() |>
+        dplyr::select(uf_cod, uf_sigla, taxa_nasc, geometry)
+
+      df_ufs_nasc_mapa <- sf::st_transform(df_ufs_nasc_mapa, crs = '+proj=longlat
++datum=WGS84')
+
+      ## Criar um update output para o gráfico de mapa
+      output$mapa_2 <- renderPlot({
+        ## Crie um gráfico de mapa com os dados de df_sinasc_ufs_nasc_filt
+        ggplot_map <- ggplot(df_sinasc_ufs_nasc_filt) +
+          geom_sf(aes(fill = taxa_nasc)) +
+          theme_void() +
+          scale_fill_gradient2()
+
+        ## Saída
+        ggplot_map
+      })
+
+    }
+    #### UF ----
+    if(input$abrang == "Unidade da federação"){
+      if(input$uf == "TODOS"){
+        df_sinasc_filt <- df_sinasc_filt
+      }else{
+        df_sinasc_filt <- df_sinasc_filt |>
+          dplyr::filter(`_UF` == input$uf)
+      }
+      ### Unindo com dados espaciais
+      df_sinasc_filt_mapa <- df_sinasc_filt |>
+        dplyr::inner_join(uf_sf, by=c("_UF" = "cod_stt")) |>
+        sf::st_as_sf() |>
+        dplyr::select(uf_sigla = `_UF`, taxa_nasc, geometry)
+
+      df_ufs_nasc_mapa <- sf::st_transform(df_ufs_nasc_mapa, crs = '+proj=longlat
++datum=WGS84')
+
+      ## Criar um update output para o gráfico de mapa
+      output$mapa_2 <- renderPlot({
+        ## Crie um gráfico de mapa com os dados de df_sinasc_ufs_nasc_filt
+        ggplot_map <- ggplot(df_sinasc_filt_mapa) +
+          geom_sf(aes(fill = taxa_nasc)) +
+          theme_void() +
+          scale_fill_gradient2()
+
+        ## Saída
+        ggplot_map
+      })
+    }
+    #### Município ----
+    if(input$abrang == "Município"){
+      if(input$mun == "Selecione a UF"){
+        df_sinasc_filt <- df_sinasc_filt
+      }else{
+        df_sinasc_filt <- df_sinasc_filt |>
+          dplyr::filter(cod_mun == input$mun)
+      }
+
+      ### Unindo com dados espaciais
+      df_sinasc_filt_mapa <- df_sinasc_filt |>
+        dplyr::inner_join(mun_sf, by=c("_CODMUNRES" = "cod")) |>
+        sf::st_as_sf() |>
+        dplyr::select(uf_cod, uf_sigla, taxa_nasc, geometry)
+
+      df_ufs_nasc_mapa <- sf::st_transform(df_ufs_nasc_mapa, crs = '+proj=longlat
++datum=WGS84')
+
+      ## Criar um update output para o gráfico de mapa
+      output$mapa_2 <- renderPlot({
+        ## Crie um gráfico de mapa com os dados de df_sinasc_ufs_nasc_filt
+        ggplot_map <- ggplot(df_sinasc_filt_mapa) +
+          geom_sf(aes(fill = taxa_nasc)) +
+          theme_void() +
+          scale_fill_gradient2()
+
+        ## Saída
+        ggplot_map
+      })
+    }
+  })
 
 
   # Bivariada ----

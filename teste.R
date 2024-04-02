@@ -188,6 +188,10 @@ con <- dbConnect(
 
 df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
 
+colnames <- colnames(df_sinasc)
+df_colnames <- data.frame(colnames) |>
+  dplyr::arrange(colnames)
+
 ## Contagem de nascimentos por estados e por data (ano_mes) -----
 df_sinasc_ufs_nasc <- df_sinasc |>
   dplyr::mutate(uf = `_UF`, ano_nasc = `_ANONASC`) |>
