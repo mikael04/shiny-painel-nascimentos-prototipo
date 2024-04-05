@@ -1,51 +1,109 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
+# Library ----
 library(shiny)
+## Layout
+library(bslib)
+library(gridlayout)
+## Gráficos
+library(ggplot2)
+## Manipulação de dados
+library(dplyr)
+library(dbplyr)
+library(tidyr)
+## Comunicação com o banco de dados
+library(bigrquery)
+library(DBI)
+## Pacote para tabelas
+library(gt)
+library(reactable)
 
-ufs_f <- c("AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS",
-           "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC",
-           "SE", "SP", "TO")
+years_f <- c(2020, 2021, 2022)
 
-regioes_f <- c("Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul")
+## Variáveis para seleção ----
+var_nasc_vivo <- c(#"Anomalias congênitas",
+    "Apgar 1o minuto", "Apgar 5o minuto",
+    "Grupo de Robson", "Idade gestacional",
+    "Peso ao nascer (OMS)",
+    "Raça/cor", "Sexo", "Tipo de Parto")
+var_mae_nasc <- c("Escolaridade da mãe", "Estado civil da mãe", "Raça/cor da mãe")
 
-# Define UI for application that draws a histogram
-ui <- fluidPage(
+var_all <- c(var_nasc_vivo, var_mae_nasc)
 
-    # Application title
-    titlePanel("Old Faithful Geyser Data"),
+# UI ----
+ui <- page_navbar(
+    ## CSS ----
+    tags$head(
+        tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+    ),
+    ## Título ----
+    div(
+        class = "title",
+        "Painel de monitoramento de Nascidos Vivos"
+    ),
+    ## Row panel ----
 
-    # Sidebar with a slider input for number of bins
-    sidebarLayout(
-        sidebarPanel(
-            selectInput('selReg', "Selecione a região",
-                        choices = list(`Regiões` = regioes_f,
-                                       `UFs` = ufs_f)),
+    theme = bs_theme(version = 5),
 
-            shinyWidgets::pickerInput('selUF', "Selecione a UF",
-                                      choices = list(`Regiões` = regioes_f,
-                                                     `UFs` = ufs_f),
-                                      options = list(`actions-box` = TRUE),
-                                      multiple = F)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
+    ### Univariada ----
+    nav_panel(
+        "Univariada",
+        class = "body",
+        # sidebar = sidebar(
+        #     width = 350,
+        #     # varSelectInput(
+        #     #   "uf", "Selecione a UF",
+        #     #   ufs_f
+        #     # ),
+        #     shinyWidgets::pickerInput(
+        #         label = "Ano de referência",
+        #         inputId = "year",
+        #         choices = c("TODOS", years_f),
+        #         selected = years_f[length(years_f)],
+        #     ),
+        #     shinyWidgets::pickerInput(
+        #         label = "Abrangência",
+        #         inputId = "abrang",
+        #         choices = c("País", "Região", "Unidade da federação", "Mesorregião",
+        #                     "Microregião", "Macroregião de saúde", "Região de saúde",
+        #                     "Município"),
+        #         selected = "País",
+        #     ),
+        #     # uiOutput("extra_geoloc_1"),
+        #     # uiOutput("extra_geoloc_2"),
+        #     # shinyWidgets::sliderTextInput(
+        #     #   inputId = "date",
+        #     #   label = "Escolha o Período:",
+        #     #   choices = date_f,
+        #     #   selected = date_f[c(1, length(date_f))]
+        #     # )
+        #     div(
+        #         class="combine_vars",
+        #         shinyWidgets::pickerInput(
+        #             label = "Nascimentos por",
+        #             inputId = "var_sel_1",
+        #             choices = list(
+        #                 `Variáveis de nascidos vivos` = var_nasc_vivo,
+        #                 `Variáveis da mãe do nascido` = var_mae_nasc
+        #             )
+        #         )
+        #     ),
+        #     div(
+        #         class="botao-filtros",
+        #         shinyWidgets::actionBttn(
+        #             inputId = "applyFilters",
+        #             label = "Aplicar",
+        #             style = "jelly",
+        #             color = "primary"
+        #         )
+        #     )
+        # )
+    ),
+    nav_panel(
+        "Bivariada",
     )
 )
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
-
+# Server ----
+server <- function(session, input, output) {
 }
 
-# Run the application
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
