@@ -65,10 +65,10 @@ cod_ibge_mun <- data.table::fread("data-raw/cod_ibge_mun_ufs.csv") |>
 
 ## Variáveis para seleção ----
 var_nasc_vivo <- c(#"Anomalias congênitas",
-                   "Apgar 1o minuto", "Apgar 5o minuto",
-                   "Grupo de Robson", "Idade gestacional",
-                   "Peso ao nascer (OMS)",
-                   "Raça/cor", "Sexo", "Tipo de Parto")
+  "Apgar 1o minuto", "Apgar 5o minuto",
+  "Grupo de Robson", "Idade gestacional",
+  "Peso ao nascer (OMS)",
+  "Raça/cor", "Sexo", "Tipo de Parto")
 var_mae_nasc <- c("Escolaridade da mãe", "Estado civil da mãe", "Raça/cor da mãe")
 
 var_all <- c(var_nasc_vivo, var_mae_nasc)
@@ -80,9 +80,9 @@ var_all <- c(var_nasc_vivo, var_mae_nasc)
 #              "Raça/cor da mãe"
 #              )
 nome_var_db <- c(#"CODANOMAL",
-                 "APGAR1", "APGAR5", "TPROBSON", "GESTACAO", "PESO_OMS",
-                 "RACACOR", "PARTO", "SEXO",
-                 "ESCMAE", "ESTCIVMAE", "RACACORMAE")
+  "APGAR1", "APGAR5", "TPROBSON", "GESTACAO", "PESO_OMS",
+  "RACACOR", "PARTO", "SEXO",
+  "ESCMAE", "ESTCIVMAE", "RACACORMAE")
 df_vars_filter <- data.frame(var_all, nome_var_db)
 
 # UI ----
@@ -215,9 +215,6 @@ server <- function(session, input, output) {
     project = "pdi-covid-basededados",
     dataset = "paineis"
   )
-
-  # Valores reativos ----
-  start = reactiveValues(value = TRUE)
 
   df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
   # Filtros reativos ----
@@ -455,61 +452,46 @@ server <- function(session, input, output) {
 
   ## Gráficos reativos ----
 
-  # ### Histograma ----
-  # observeEvent(input$filter_sidebar_hist, {
-  #   if(input$filter_sidebar_hist != "TODOS"){
-  #     # browser()
-  #     df_sinasc_ufs_nasc_hist_filt <- df_sinasc_ufs_nasc |>
-  #       dplyr::filter(uf_sigla == input$filter_sidebar_hist) |>
-  #       dplyr::group_by(ano_nasc) |>
-  #       dplyr::summarise(count = sum(count)) |>
-  #       dplyr::ungroup()
-  #     ## Criar um update output para o gráfico de histograma
-  #     output$histograma <- ggiraph::renderGirafe({
-  #       ## Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
-  #       ## usando os dados de ano_nasc e count como tooltip
-  #       graph_hist <- df_sinasc_ufs_nasc_hist_filt |>
-  #         ggplot2::ggplot() +
-  #         ggplot2::labs(title = "Nascimentos por ano",
-  #                       x = "",
-  #                       y = "") +
-  #         ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3))  +
-  #         ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
-  #         ggplot2::theme_minimal() +
-  #         ggplot2::theme(legend.position = "none") +
-  #         ggiraph::geom_bar_interactive(stat = "identity", width = 1,
-  #                                       aes(x = ano_nasc, y = count, fill = "#ABA2D1",
-  #                                           tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
-  #
-  #       ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
-  #     })
-  #   }
-  # })
+  ### Histograma ----
+  observeEvent(input$filter_sidebar_hist, {
+    if(input$filter_sidebar_hist != "TODOS"){
+      # browser()
+      df_sinasc_ufs_nasc_hist_filt <- df_sinasc_ufs_nasc |>
+        dplyr::filter(uf_sigla == input$filter_sidebar_hist) |>
+        dplyr::group_by(ano_nasc) |>
+        dplyr::summarise(count = sum(count)) |>
+        dplyr::ungroup()
+      ## Criar um update output para o gráfico de histograma
+      output$histograma <- ggiraph::renderGirafe({
+        ## Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
+        ## usando os dados de ano_nasc e count como tooltip
+        graph_hist <- df_sinasc_ufs_nasc_hist_filt |>
+          ggplot2::ggplot() +
+          ggplot2::labs(title = "Nascimentos por ano",
+                        x = "",
+                        y = "") +
+          ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3))  +
+          ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
+          ggplot2::theme_minimal() +
+          ggplot2::theme(legend.position = "none") +
+          ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+                                        aes(x = ano_nasc, y = count, fill = "#ABA2D1",
+                                            tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+
+        ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
+      })
+    }
+  })
 
   ### Gráfico e tabela ----
   ### Reativos à filtro lateral
 
-  #### Dados reativos ----
-  df_sinasc_hist <- reactive({
-    if(start == T){
-
-    }
-    if(start == F){
-      if(input$filt_hist_uf == "TODOS"){
-        df_sinasc_hist_f <- df_sinasc
-      }else{
-        if(input$filt_hist_uf %in% regioes_f)
-          df_sinasc_hist_f <- df_sinasc |>
-            dplyr::filter(`_UF` == input$filt_hist_uf)
-      }
-      if(input$filt_hist_raca == "TODOS"){
-        df_sinasc_hist_f <- df_sinasc_hist_f
-      }
-    }
-    df_sinasc
-  })
-  observeEvent(input$filter_sidebar_hist, {
+  observeEvent(input$applyFilters, {
     #### Filtro ano ----
+    ano_sel <- input$year
+
+    df_sinasc_filt <- df_sinasc |>
+      dplyr::filter(ano_nasc == ano_sel)
 
     #### País ----
     if(input$abrang == "País"){

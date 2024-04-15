@@ -452,8 +452,8 @@ server <- function(session, input, output) {
           )
         )
       ),
-      footer = tagList(actionButton("filter", "Finalizar filtro"),
-                       actionButton("close", "Fechar")))
+      footer = tagList(actionButton("filter", "Aplicar filtros"),
+                       actionButton("close", "Não aplicar filtros e fechar")))
     )
   })
   observeEvent(input$close, {

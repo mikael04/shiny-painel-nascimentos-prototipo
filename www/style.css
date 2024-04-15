@@ -22,6 +22,15 @@
   padding-left: 30px;
 }
 
+/* Ajustando tamanho dos filtros da bivariada */
+.form-group{
+  width: 100% !important;
+}
+/* Alinhando botão de inválidos */
+.tabela_c_invalido{
+  align-content: center;
+}
+
 /*.bslib-sidebar-layout>.collapse-toggle>.collapse-icon{
   opacity: 0 !important;
 }*/
