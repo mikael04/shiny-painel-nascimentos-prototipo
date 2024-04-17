@@ -482,7 +482,7 @@ server <- function(session, input, output) {
           dplyr::ungroup()
       }
 
-      title <- paste0("Taxa de Nascimentos por ano (por mil hab.)", " - Região: ", input$filt_hist_reg_uf)
+      title <- paste0("Taxa de Nascimentos por ano (por mil nascidos vivos)", " - Região: ", input$filt_hist_reg_uf)
       subtitle_add_racacor <- ifelse(input$filt_hist_racacor == "Todas", "",
                                      paste0(" - Raça/cor: ", input$filt_hist_racacor))
       subtitle <- paste0("Agrupados por UF", subtitle_add_racacor)
@@ -534,7 +534,7 @@ server <- function(session, input, output) {
           dplyr::ungroup()
       }
 
-      title <- "Taxa de Nascimentos por ano (por mil hab.)"
+      title <- "Taxa de Nascimentos por ano (por mil nascidos vivos)"
       title_add <- ifelse(input$filt_hist_reg_uf == "TODOS", " - Brasil", paste0(" - UF: ", input$filt_hist_reg_uf))
       title <- paste0(title, title_add)
 
