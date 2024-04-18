@@ -1,0 +1,84 @@
+nivel,label,variavel,label_en
+1,0 a 2 - Asfixia grave,APGAR1,"0, 1 and 2 - Severe choking"
+2,3 a 4 - Asfixia moderada,APGAR1,3 and 4 - Moderate choking
+3,5 a 7 - Asfixia leve,APGAR1,"5, 6 and 7 - Mild choking "
+4,8 a 10 - Sem asfixia,APGAR1,"8, 9 and 10 - No choking"
+99,Inválido ou nulo,APGAR1,Invalid or null
+1,0 a 2 - Asfixia grave,APGAR5,"0, 1 and 2 - Severe choking"
+2,3 a 4 - Asfixia moderada,APGAR5,3 and 4 - Moderate choking
+3,5 a 7 - Asfixia leve,APGAR5,"5, 6 and 7 - Mild choking "
+4,8 a 10 - Sem asfixia,APGAR5,"8, 9 and 10 - No choking"
+99,Inválido ou nulo,APGAR5,Invalid or null
+1,Sim,CODANOMAL_,Yes
+2,Não,CODANOMAL_,No
+99,Inválido ou nulo,CODANOMAL_,Invalid or null
+1,Nenhuma,CONSULTAS,0
+2,De 1 a 3 visitas,CONSULTAS,1 to 3
+3,De 4 a 6 visitas,CONSULTAS,4 to 6
+4,7 ou mais visitas,CONSULTAS,7 or more
+99,Inválido ou nulo,CONSULTAS,Invalid or null
+1,Nenhuma,ESCMAE,None
+2,De 0 a 3 anos,ESCMAE,0 to 3 years
+3,De 4 a 7 anos,ESCMAE,4 to 7 years
+4,De 8 a 11 anos,ESCMAE,8 to 11 years
+5,Mais de 12 anos,ESCMAE,More than 12 years
+99,Inválido ou nulo,ESCMAE,Invalid or null
+0,Sem escolaridade,ESCMAE2010,No schooling
+1,Fundamental I (1ª a 4ª serie),ESCMAE2010,Fundamental I (1ª a 4ª serie)
+2,Fundamental II (5ª a 8ª serie),ESCMAE2010,Fundamental II (5ª a 8ª serie)
+3,Medio (antigo 2º grau),ESCMAE2010,Medio (antigo 2º grau)
+4,Superior incompleto,ESCMAE2010,Superior incompleto
+5,Superior Completo,ESCMAE2010,Superior Completo
+99,Inválido ou nulo,ESCMAE2010,Invalid or null
+1,Solteira,ESTCIVMAE,Single
+2,Casada,ESTCIVMAE,Married
+3,Viúva,ESTCIVMAE,Widow
+4,Separado judicialmente/Divorciado,ESTCIVMAE,Divorced
+5,União consensual,ESTCIVMAE,Common-law marriege
+9,Inválido ou nulo,ESTCIVMAE,Invalid or null
+1,Com companheiro (a),ESTCIVMAE_,With partner
+2,Sem companheiro (a),ESTCIVMAE_,Without partner
+99,Inválido ou nulo,ESTCIVMAE_,Invalid or null
+1,22 semanas ou menos,GESTACAO,22 weeks or less
+2,22 a 27 semanas,GESTACAO,22 to 27 weeks
+3,28 a 31 semanas,GESTACAO,28 to 31 weeks
+4,32 a 36 semanas,GESTACAO,32 to 36 weeks
+5,37 a 41 semanas,GESTACAO,37 to 41 weeks
+6,42 semanas ou mais,GESTACAO,42 weeks or more
+99,Inválido ou nulo,GESTACAO,Invalid or null
+1,Vaginal,PARTO,Normal
+2,Cesário,PARTO,Cesarian
+99,Inválido ou nulo,PARTO,Inconsistency
+1,1000g ou menos,PESO_OMS,1000g or less
+2,Entre 1000g e 1499g,PESO_OMS,Between 1000g and 1499g
+3,Entre 1500g e 2499g,PESO_OMS,Between 1500g and 2499g
+4,Entre 2500g e 2999g,PESO_OMS,Between 2500g and 2999g
+5,Entre 3000g e 3999g,PESO_OMS,Between 3000g and 3999g
+6,Mais de 4000g,PESO_OMS,More than 4000g
+99,Inválido ou nulo,PESO_OMS,Invalid or null
+1,Branca,RACACOR,White
+2,Preta,RACACOR,Black
+3,Amarela,RACACOR,Yellow
+4,Parda,RACACOR,Brown
+5,Indígena,RACACOR,Indigenous
+99,Inválido ou nulo,RACACOR,Invalid or null
+1,Branca,RACACORMAE,White
+2,Preta,RACACORMAE,Black
+3,Amarela,RACACORMAE,Yellow
+4,Parda,RACACORMAE,Brown
+5,Indígena,RACACORMAE,Indigenous
+99,Inválido ou nulo,RACACORMAE,Invalid or null
+1,Masculino,SEXO,Male
+2,Feminino,SEXO,Female
+99,Inválido ou nulo,SEXO,Invalid or null
+1,Grupo 01,TPROBSON,Group 01
+2,Grupo 02,TPROBSON,Group 02
+3,Grupo 03,TPROBSON,Group 03
+4,Grupo 04,TPROBSON,Group 04
+5,Grupo 05,TPROBSON,Group 05
+6,Grupo 06,TPROBSON,Group 06
+7,Grupo 07,TPROBSON,Group 07
+8,Grupo 08,TPROBSON,Group 08
+9,Grupo 09,TPROBSON,Group 09
+10,Grupo 10,TPROBSON,Group 10
+99,Inválido ou nulo,TPROBSON,Invalid or null

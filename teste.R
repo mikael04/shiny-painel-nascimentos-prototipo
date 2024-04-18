@@ -188,6 +188,10 @@ con <- dbConnect(
 
 df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
 
+colnames <- colnames(df_sinasc)
+df_colnames <- data.frame(colnames) |>
+  dplyr::arrange(colnames)
+
 ## Contagem de nascimentos por estados e por data (ano_mes) -----
 df_sinasc_ufs_nasc <- df_sinasc |>
   dplyr::mutate(uf = `_UF`, ano_nasc = `_ANONASC`) |>
@@ -231,6 +235,77 @@ df_sinasc_apgar_idade <- df_sinasc_apgar_idade |>
 library(dplyr)
 library(tidyr)
 
+output$histograma <- ggiraph::renderGirafe({
+  ## Crie um gráfico de histograma do tipo ggiraph com os dados de df_sinasc_ufs_nasc_hist_filt
+  ## usando os dados de ano_nasc e count como tooltip
+  graph_hist <- df_sinasc_ufs_nasc_hist_filt |>
+    ggplot2::ggplot() +
+    ggplot2::labs(title = "Nascimentos por ano",
+                  x = "",
+                  y = "") +
+    ggplot2::scale_y_continuous(labels = scales::unit_format(unit = "mil", scale = 1e-3))  +
+    ggplot2::scale_x_discrete(breaks = seq(1996, 2024, 2))  +
+    ggplot2::theme_minimal() +
+    ggiraph::geom_bar_interactive(stat = "identity", width = 1,
+                                  aes(x = ano_nasc, y = count, fill = "#ABA2D1",
+                                      tooltip = paste0("Ano: ", ano_nasc, "<br> Nascimentos: ", count)))
+
+  ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
+})
+
+## Consultando ano de nascimento e escolaridade da mãe ----
+# Bigrquery ----
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "pdi-covid-basededados",
+  dataset = "paineis"
+)
+df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
+
+colnames <- colnames(df_sinasc)
+df_colnames <- data.frame(colnames) |>
+  dplyr::arrange(colnames)
+
+## Contagem de nascimentos por estados e por data (ano_mes) -----
+df_sinasc_ufs_nasc <- df_sinasc |>
+  dplyr::mutate(ESCMAE2010, ano_nasc = `_ANONASC`) |>
+  dplyr::group_by(ESCMAE2010, ano_nasc) |>
+  dplyr::summarise(count = n()) |>
+  dplyr::select(esc_mae = ESCMAE2010, ano_nasc, count) |>
+  dplyr::ungroup() |>
+  dplyr::collect()
+
+labels_esc <- data.table::fread("data-raw/labels.csv") |>
+  dplyr::select(nivel, label, variavel) |>
+  dplyr::filter(variavel == "escmae2010_sinasc") |>
+  dplyr::mutate(nivel = as.character(nivel))
+
+df_sinasc_ufs_nasc_esc <- df_sinasc_ufs_nasc |>
+  dplyr::left_join(labels_esc, by = c("esc_mae" = "nivel")) |>
+  dplyr::mutate(label = ifelse(is.na(label), "Inválido ou nulo", label)) |>
+  dplyr::group_by(ano_nasc, label) |>
+  dplyr::mutate(count = sum(count)) |>
+  dplyr::distinct(ano_nasc, label, .keep_all = T) |>
+  dplyr::arrange(ano_nasc, label) |>
+  dplyr::select(ano_nasc, label, count) |>
+  dplyr::ungroup()
+
+df_sinasc_ufs_nasc_esc |>
+  dplyr::arrange(factor(ano_nasc, levels = labels_esc$label))
+
+ggplot(df_sinasc_ufs_nasc_esc, aes(x = ano_nasc, y = count, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Nascimentos por ano e escolaridade da mãe",
+       x = "Ano de nascimento",
+       y = "Número de nascimentos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  # scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  scale_fill_discrete(labels_esc$label)
+
+
+labels_esc$label <- as.factor(labels_esc$label, labels = labels_esc$label)
 
 
 
@@ -256,19 +331,12 @@ library(tidyr)
 
 
 
+fruits <- c("Apple", "Banana", "Lemon")
+fruits_2 <- c("Apple", "Banana")
 
+fruits_3 <- fruits[fruits %in% fruits_2]
 
-
-
-
-
-
-
-
-
-
-
-
+print(fruits_3)
 
 
 

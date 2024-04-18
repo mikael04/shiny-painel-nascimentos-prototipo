@@ -6,3 +6,31 @@
   font-weight: 800 !important;
   text-align: center !important;
 }
+/*
+.bslib-gap-spacing{
+  padding-left: 0px !important;
+  padding-top: 0px !important;
+}*/
+/* Margem para barra de navegação */
+.navbar-default{
+  margin-left: -24px;
+  padding-left: 0px;
+  margin-top: -24px;
+  padding-top: 0px;
+}
+.navbar-collapse{
+  padding-left: 30px;
+}
+
+/* Ajustando tamanho dos filtros da bivariada */
+.form-group{
+  width: 100% !important;
+}
+/* Alinhando botão de inválidos */
+.tabela_c_invalidos{
+  align-content: center;
+}
+
+/*.bslib-sidebar-layout>.collapse-toggle>.collapse-icon{
+  opacity: 0 !important;
+}*/
