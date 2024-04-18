@@ -253,13 +253,63 @@ output$histograma <- ggiraph::renderGirafe({
   ggiraph::girafe(ggobj = graph_hist, width_svg = 6, height_svg = 4)
 })
 
+## Consultando ano de nascimento e escolaridade da mãe ----
+# Bigrquery ----
+con <- dbConnect(
+  bigrquery::bigquery(),
+  project = "pdi-covid-basededados",
+  dataset = "paineis"
+)
+df_sinasc <- tbl(con, "view_sinasc_tratamento_painel")
+
+colnames <- colnames(df_sinasc)
+df_colnames <- data.frame(colnames) |>
+  dplyr::arrange(colnames)
+
+## Contagem de nascimentos por estados e por data (ano_mes) -----
+df_sinasc_ufs_nasc <- df_sinasc |>
+  dplyr::mutate(ESCMAE2010, ano_nasc = `_ANONASC`) |>
+  dplyr::group_by(ESCMAE2010, ano_nasc) |>
+  dplyr::summarise(count = n()) |>
+  dplyr::select(esc_mae = ESCMAE2010, ano_nasc, count) |>
+  dplyr::ungroup() |>
+  dplyr::collect()
+
+labels_esc <- data.table::fread("data-raw/labels.csv") |>
+  dplyr::select(nivel, label, variavel) |>
+  dplyr::filter(variavel == "escmae2010_sinasc") |>
+  dplyr::mutate(nivel = as.character(nivel))
+
+df_sinasc_ufs_nasc_esc <- df_sinasc_ufs_nasc |>
+  dplyr::left_join(labels_esc, by = c("esc_mae" = "nivel")) |>
+  dplyr::mutate(label = ifelse(is.na(label), "Inválido ou nulo", label)) |>
+  dplyr::group_by(ano_nasc, label) |>
+  dplyr::mutate(count = sum(count)) |>
+  dplyr::distinct(ano_nasc, label, .keep_all = T) |>
+  dplyr::arrange(ano_nasc, label) |>
+  dplyr::select(ano_nasc, label, count) |>
+  dplyr::ungroup()
+
+df_sinasc_ufs_nasc_esc |>
+  dplyr::arrange(factor(ano_nasc, levels = labels_esc$label))
+
+ggplot(df_sinasc_ufs_nasc_esc, aes(x = ano_nasc, y = count, fill = label)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Nascimentos por ano e escolaridade da mãe",
+       x = "Ano de nascimento",
+       y = "Número de nascimentos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  # scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  scale_fill_discrete(labels_esc$label)
+
+
+labels_esc$label <- as.factor(labels_esc$label, labels = labels_esc$label)
 
 
 
 
-# How can i solve this error:
-# `geom_path()`: Each group consists of only one observation.
-# ℹ Do you need to adjust the group aesthetic?
 
 
 
@@ -281,16 +331,12 @@ output$histograma <- ggiraph::renderGirafe({
 
 
 
+fruits <- c("Apple", "Banana", "Lemon")
+fruits_2 <- c("Apple", "Banana")
 
+fruits_3 <- fruits[fruits %in% fruits_2]
 
-
-
-
-
-
-
-
-
+print(fruits_3)
 
 
 

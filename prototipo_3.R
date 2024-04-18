@@ -111,7 +111,7 @@ var_all <- c(var_nasc_vivo, var_mae_nasc)
 nome_var_db <- c(#"CODANOMAL",
   "APGAR1", "APGAR5", "TPROBSON", "GESTACAO", "PESO_OMS",
   "RACACOR", "PARTO", "SEXO",
-  "ESCMAE", "ESTCIVMAE", "RACACORMAE")
+  "ESCMAE2010", "ESTCIVMAE", "RACACORMAE")
 df_vars_filter <- data.frame(var_all, nome_var_db)
 
 ## Variáveis para seleção bivariada ----
@@ -125,7 +125,7 @@ nome_var_db <- c(
   "CONSULTAS", "GESTACAO",
   "PESO", "RACACOR",
   "SEXO", "PARTO",
-  "ESCMAE", "ESTCIVMAE", "RACACORMAE")
+  "ESCMAE2010", "ESTCIVMAE", "RACACORMAE")
 
 df_vars_filter_biv <- data.frame(var_all_biv, nome_var_db)
 
@@ -598,31 +598,16 @@ server <- function(session, input, output) {
   })
 
   # Bivariada ----
-  ## Fazer uma busca com os dados de das colunas APGAR1 e IDADEMAE criando uma contagem do número de linhas com group_by e summarise
-  df_sinasc_apgar_idade <- df_sinasc |>
-    dplyr::select(`APGAR1`, `_FXETARIAMAE`) |>
-    dplyr::mutate(`APGAR1` = as.numeric(`APGAR1`)) |>
-    dplyr::group_by(`APGAR1`, `_FXETARIAMAE`) |>
-    dplyr::summarise(count = n()) |>
-    dplyr::ungroup() |>
-    dplyr::select(apgar1 = `APGAR1`, idademae = `_FXETARIAMAE`, count) |>
-    dplyr::filter(apgar1 <= 10) |>
-    dplyr::collect() |>
-    dplyr::arrange(apgar1, idademae)
-
-
-  ## Fazer um pivot_wider usando a coluna idade_mae como coluna e count como valor
-  df_sinasc_apgar_idade_wide <- df_sinasc_apgar_idade |>
-    tidyr::pivot_wider(names_from = idademae, values_from = count) |>
-    dplyr::mutate(across(everything(), ~replace_na(., 0))) |>
-    dplyr::mutate(across(everything(), as.integer))
 
   ### Separando dados por filtros ----
   #### Com UF, será filtrado o df que faz o join
   df_sinasc_biv <- reactive({
     year <- input$year
-    df_sinasc_filt <- df_sinasc |>
-      dplyr::filter(`_ANONASC` == year)
+    browser()
+    if(year != "TODOS"){
+      df_sinasc_filt <- df_sinasc |>
+        dplyr::filter(`_ANONASC` == year)
+    }
 
     # browser()
     #### Brasil ----
@@ -772,6 +757,12 @@ server <- function(session, input, output) {
     ## Ordenando colunas da segunda variável
     new_order <- c(var1, labels_var2$label)
     new_order <- c(new_order[new_order != "Inválido ou nulo"], "Total")
+
+    ## Removendo colunas que não aparecem (por não terem dados)
+    # browser()
+    # if(length(new_order) != ncol(tabela_bivariada)){
+    #   new_oder <- new_order[new_order %in% colnames(tabela_bivariada)]
+    # }
 
     ## Reordenando e organizando a ordem
     tabela_bivariada <- tabela_bivariada |>
