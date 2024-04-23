@@ -1,109 +1,70 @@
-# Library ----
 library(shiny)
-## Layout
 library(bslib)
-library(gridlayout)
-## Gráficos
-library(ggplot2)
-## Manipulação de dados
-library(dplyr)
-library(dbplyr)
-library(tidyr)
-## Comunicação com o banco de dados
-library(bigrquery)
-library(DBI)
-## Pacote para tabelas
-library(gt)
-library(reactable)
 
-years_f <- c(2020, 2021, 2022)
-
-## Variáveis para seleção ----
-var_nasc_vivo <- c(#"Anomalias congênitas",
-    "Apgar 1o minuto", "Apgar 5o minuto",
-    "Grupo de Robson", "Idade gestacional",
-    "Peso ao nascer (OMS)",
-    "Raça/cor", "Sexo", "Tipo de Parto")
-var_mae_nasc <- c("Escolaridade da mãe", "Estado civil da mãe", "Raça/cor da mãe")
-
-var_all <- c(var_nasc_vivo, var_mae_nasc)
-
-# UI ----
-ui <- page_navbar(
-    ## CSS ----
-    tags$head(
-        tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
-    ),
-    ## Título ----
-    div(
-        class = "title",
-        "Painel de monitoramento de Nascidos Vivos"
-    ),
-    ## Row panel ----
-
-    theme = bs_theme(version = 5),
-
-    ### Univariada ----
-    nav_panel(
-        "Univariada",
-        class = "body",
-        # sidebar = sidebar(
-        #     width = 350,
-        #     # varSelectInput(
-        #     #   "uf", "Selecione a UF",
-        #     #   ufs_f
-        #     # ),
-        #     shinyWidgets::pickerInput(
-        #         label = "Ano de referência",
-        #         inputId = "year",
-        #         choices = c("TODOS", years_f),
-        #         selected = years_f[length(years_f)],
-        #     ),
-        #     shinyWidgets::pickerInput(
-        #         label = "Abrangência",
-        #         inputId = "abrang",
-        #         choices = c("País", "Região", "Unidade da federação", "Mesorregião",
-        #                     "Microregião", "Macroregião de saúde", "Região de saúde",
-        #                     "Município"),
-        #         selected = "País",
-        #     ),
-        #     # uiOutput("extra_geoloc_1"),
-        #     # uiOutput("extra_geoloc_2"),
-        #     # shinyWidgets::sliderTextInput(
-        #     #   inputId = "date",
-        #     #   label = "Escolha o Período:",
-        #     #   choices = date_f,
-        #     #   selected = date_f[c(1, length(date_f))]
-        #     # )
-        #     div(
-        #         class="combine_vars",
-        #         shinyWidgets::pickerInput(
-        #             label = "Nascimentos por",
-        #             inputId = "var_sel_1",
-        #             choices = list(
-        #                 `Variáveis de nascidos vivos` = var_nasc_vivo,
-        #                 `Variáveis da mãe do nascido` = var_mae_nasc
-        #             )
-        #         )
-        #     ),
-        #     div(
-        #         class="botao-filtros",
-        #         shinyWidgets::actionBttn(
-        #             inputId = "applyFilters",
-        #             label = "Aplicar",
-        #             style = "jelly",
-        #             color = "primary"
-        #         )
-        #     )
-        # )
-    ),
-    nav_panel(
-        "Bivariada",
+ui <- function() {
+    page_navbar(
+        id = "main_nav",
+        nav_panel("first", "First content",
+                  nav_panel("first_1", "First content"),
+                  nav_panel("first_2", "First content")),
+        nav_panel("second", "Second content"),
+        # Dropdown with card
+        nav_menu(
+            title = "Card",
+            nav_item(
+                card(
+                    card_title("Hey it's a card!"),
+                    card_body("And it has a body!"),
+                    class = "border-0",
+                    style = css(width = "25rem")
+                )
+            )
+        ),
+        # Dropdown with navset card
+        nav_menu(
+            title = "Nav Card",
+            nav_item(
+                navset_card_pill(
+                    id = "inner_nav",
+                    nav_panel("in_first", "Inner first content"),
+                    nav_panel("in_second", "Inner second content")
+                ) |>
+                    tagAppendAttributes(
+                        # Remove the border from the card
+                        class = "border-0",
+                        # Force the card to be at least 25rem wide
+                        style = css(min_width = "25rem"),
+                        # Prevent the menu from closing when clicking on the card tab
+                        onclick = "event.stopPropagation();"
+                    )
+            ),
+            nav_item(
+                navset_card_pill(
+                    id = "inner_nav_2",
+                    nav_panel("in_first_2", "Inner first content"),
+                    nav_panel("in_second_2", "Inner second content")
+                ) |> |>
+                    tagAppendAttributes(
+                        # Remove the border from the card
+                        class = "border-0",
+                        # Force the card to be at least 25rem wide
+                        style = css(min_width = "25rem"),
+                        # Prevent the menu from closing when clicking on the card tab
+                        onclick = "event.stopPropagation();"
+                    )
+            )
+        ),
+        # Remove the vertical padding from the nav card dropdown menu
+        footer = tags$style(HTML(
+            '[data-value="Nav Card"] ~ .dropdown-menu { --bs-dropdown-padding-y: 0; }'
+        ))
     )
-)
+}
 
-# Server ----
-server <- function(session, input, output) {
+server <- function(input, output) {
+    # These observers are broken because of the nested navset card
+    observe(cli::cli_inform("{.strong main:} {input$main_nav}"))
+    observe(cli::cli_inform("{.strong inner:} {input$inner_nav}"))
 }
 
 shinyApp(ui, server)

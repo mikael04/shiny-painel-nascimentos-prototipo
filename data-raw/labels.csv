@@ -16,6 +16,7 @@ nivel,label,variavel,label_en
 2,De 1 a 3 visitas,CONSULTAS,1 to 3
 3,De 4 a 6 visitas,CONSULTAS,4 to 6
 4,7 ou mais visitas,CONSULTAS,7 or more
+9,Inválido ou nulo,CONSULTAS,Invalid or null
 99,Inválido ou nulo,CONSULTAS,Invalid or null
 1,Nenhuma,ESCMAE,None
 2,De 0 a 3 anos,ESCMAE,0 to 3 years

@@ -15,6 +15,10 @@ library(DBI)
 ## Pacote para tabelas
 library(gt)
 library(reactable)
+source("fct/fct_applyFilters.R")
+source("fct/fct_sinasc_biv.R")
+source("fct/fct_sinasc_order_perc_inv.R")
+source("fct/fct_sinasc_univ.R")
 
 ## Variáveis globais ----
 ggiraph_plotly <- F
@@ -98,7 +102,7 @@ var_nasc_vivo <- c(#"Anomalias congênitas",
   "Grupo de Robson", "Idade gestacional",
   "Peso ao nascer (OMS)",
   "Raça/cor", "Sexo", "Tipo de Parto")
-var_mae_nasc <- c("Escolaridade da mãe", "Estado civil da mãe", "Raça/cor da mãe")
+var_mae_nasc <- c("Escolaridade da mãe", "Escolaridade da mãe (2010)", "Estado civil da mãe", "Raça/cor da mãe")
 
 var_all <- c(var_nasc_vivo, var_mae_nasc)
 # var_sel <- c("Anomalias congênitas", "Apgar 1o minuto", "Apgar 5o minuto",
@@ -111,7 +115,7 @@ var_all <- c(var_nasc_vivo, var_mae_nasc)
 nome_var_db <- c(#"CODANOMAL",
   "APGAR1", "APGAR5", "TPROBSON", "GESTACAO", "PESO_OMS",
   "RACACOR", "PARTO", "SEXO",
-  "ESCMAE2010", "ESTCIVMAE", "RACACORMAE")
+  "ESCMAE", "ESCMAE2010", "ESTCIVMAE", "RACACORMAE")
 df_vars_filter <- data.frame(var_all, nome_var_db)
 
 ## Variáveis para seleção bivariada ----
@@ -125,7 +129,7 @@ nome_var_db <- c(
   "CONSULTAS", "GESTACAO",
   "PESO", "RACACOR",
   "SEXO", "PARTO",
-  "ESCMAE2010", "ESTCIVMAE", "RACACORMAE")
+  "ESCMAE2010", "ESCMAE", "ESTCIVMAE", "RACACORMAE")
 
 df_vars_filter_biv <- data.frame(var_all_biv, nome_var_db)
 
@@ -155,8 +159,8 @@ ui <- page_sidebar(
     shinyWidgets::pickerInput(
       label = "Abrangência",
       inputId = "abrang",
-      choices = c("Brasil", "Região", "Unidade da federação", "Mesorregião",
-                  "Microregião", "Macroregião de saúde", "Região de saúde",
+      choices = c("Brasil", "Região", "Unidade da federação",
+                  "Macroregião de saúde", "Região de saúde",
                   "Município"),
       selected = "Brasil",
     ),
@@ -191,26 +195,40 @@ ui <- page_sidebar(
   ),
   ## Row panel ----
   page_navbar(
-    # ### Univariada ----
-    # nav_panel(
-    #   "Univariada",
-    #   div(
-    #     class="row",
-    #     div(
-    #       class="col-6",
-    #       bslib::card(
-    #         # plotOutput("mapa_2")
-    #         plotOutput("barras_1")
-    #       )
-    #     ),
-    #     div(
-    #       class="col-6",
-    #       bslib::card(
-    #         gt::gt_output("tabela_uf")
-    #       )
-    #     )
-    #   )
-    # ),
+    ### Univariada ----
+    nav_panel(
+      "Univariada",
+      div(
+        class= "univ-filters",
+        fluidRow(
+          column(
+            width = 5,
+            shinyWidgets::pickerInput(
+              "Selecione a variável",
+              inputId = "univ_var_1",
+              choices = list(
+                `Variáveis de nascidos vivos` = vars_bivariada,
+                `Variáveis da mãe do nascido` = var_mae_nasc
+              )
+            )
+          ),
+          column(
+            class="tabela_c_invalidos",
+            width = 2,
+            shinyWidgets::prettyToggle(
+              inputId = "univ_tabela_c_invalidos",
+              label_on = HTML("Com inválidos"),
+              label_off = HTML("Sem inválidos")
+            )
+          )
+        ),
+        fluidRow(
+          bslib::card(
+            gt::gt_output("tabela_univariada")
+          )
+        )
+      )
+    ),
     ### Histograma ----
     #### Nasc por área geográfica ----
     nav_panel(
@@ -249,7 +267,8 @@ ui <- page_sidebar(
         )
       )
     ),
-    # Bivariada ----
+
+    ### Bivariada ----
     nav_panel(
       "Bivariada",
       div(
@@ -311,6 +330,8 @@ server <- function(session, input, output) {
   ## Dados ibge municípios
   df_mun <- data.table::fread("data-raw/ibge-dados-municipais-tratados.csv")
   df_ufs <- data.table::fread("data-raw/ibge-ufs-pop-2022-est.csv")
+  ## Dados ibge mun e reg saúde (macro e micro)
+  df_mun_reg_saude <- data.table::fread("data-raw/mun_uf_regiao_reg_saude.csv")
 
   # Bigrquery ----
   con <- dbConnect(
@@ -596,52 +617,178 @@ server <- function(session, input, output) {
 
 
   })
+  # Univariada ----
+  ## Tabela para versão inicial ----
+
+  output$tabela_univariada <- gt::render_gt({
+    # saveRDS(tab_biv_final, "data/tabela_inicial_univariada.rds")
+    tab_biv_final <- readRDS("data/tabela_inicial_univariada.rds")
+    title <- paste0("Contagem de Consultas pré-natal por ",  "UFs", " em ", "2023")
+    gt_table <- tab_biv_final |>
+      gt::gt(locale = "pt") |>
+      gt::tab_header(title = title, preheader = NULL) |>
+      gt::cols_label(
+        UF = "UF",
+        `Região` = "Região"
+      ) |>
+      # gt::tab_style(
+      #   style = list(
+      #     cell_text(weight = "bold")
+      #   ),
+      #   locations = cells_body(
+      #     columns = c("Total_N", "Total_%")
+      #   )
+      # ) |>
+      # gt::opt_interactive(use_compact_mode = TRUE) |>
+      gt::tab_spanner_delim(
+        delim = "_"
+      ) |>
+      fmt_percent(ends_with("%"), decimals = 2)
+  })
+
+  observeEvent(input$applyFilters, {
+    # browser()
+    df_var1 <- df_vars_filter_biv |>
+      dplyr::filter(var_all_biv == input$biv_var_1)
+
+    var1_name <- df_var1 |>
+      dplyr::pull(var_all_biv)
+
+    var1 <- df_var1 |>
+      dplyr::pull(nome_var_db)
+
+    ## Adicionando labels
+    labels_var1 <- labels |>
+      dplyr::filter(variavel == var1) |>
+      dplyr::select(-variavel) |>
+      dplyr::rename(!!var1 := nivel)
+
+    input_year <- input$year
+    input_abrang <- input$abrang
+    input_uf <- input$uf
+    input_reg <- input$reg
+    input_mrs <- input$mrs
+    input_rs <- input$rs
+    input_mun <- input$mun
+    list_inputs <- list(input_year, input_abrang, input_uf, input_reg,
+                        input_mrs, input_rs, input_mun)
+
+    browser()
+    if(input$abrang == "Brasil"){
+      df_sinasc_filt <- df_sinasc
+      df_mun_reg_saude_reg_saude <- NULL
+    }
+    if(input$abrang == "Unidade da federação"){
+      df_sinasc_filt <- df_sinasc |>
+        dplyr::filter(sigla_uf == input_uf)
+      df_ufs = NULL
+    }
+    if(input$abrang == "Município" || input$abrang == "Região de saúde"){
+      regiao_saude <- df_mun_reg_saude |>
+        dplyr::filter(nome_mun == input_mun) |>
+        dplyr::pull(CO_REGSAUD)
+      ## Como o df_sinasc ainda não possui dados de região de saúde, precisamos filtrar por município
+      muns <- df_mun_reg_saude |>
+        dplyr::filter(CO_REGSAUD == regiao_saude) |>
+        dplyr::pull(cod_ibge)
+
+      muns <- as.character(muns)
+
+      df_sinasc_filt <- df_sinasc |>
+        dplyr::filter(`_ANONASC` == input_year, `_CODMUNRES` %in% muns) |>
+        dplyr::select(`_CODMUNRES`, `_UF`, `_ANONASC` , all_of(nome_var_db)) |>
+        dplyr::collect()
+      df_ufs = NULL
+    }
+
+    # browser()
+    list_tab <- func_sinasc_univ(
+      df_sinasc_filt, df_ufs, df_mun_reg_saude,
+      var1, var1_name, labels_var1,
+      list_inputs)
+
+    ## Se o retorno do segundo elemento da lista for T, significa que não haviam dados válidos no município/reg saúde
+    if(list_tab[[2]] == F){
+      showModal(modalDialog(
+        title = "Não há dados disponíveis válidos para este município/região de saúde",
+        paste0("Não possuímos dados dados válidos na nossa base de dados para esta combinação de filtros (Ano e localidade) e variável selecionada).
+               Por favor, selecione outra combinação."),
+        footer = modalButton("Fechar"),
+        easyClose = TRUE
+      ))
+    }
+    ## Se o retorno do segundo elemento da lista for F, existem dados válidos no município/reg saúde
+    if(list_tab[[2]] == T){
+      output$tabela_univariada <- gt::render_gt({
+        loc = case_when(
+          input_abrang == "Brasil" ~ "UFs",
+          input_abrang == "Região" ~ "UFs",
+          input_abrang == "Unidade da federação" ~ "UFs",
+          input_abrang == "Macroregião de saúde" ~ "Macroregião de saúde",
+          input_abrang == "Região de saúde" ~ "Região de saúde",
+          input_abrang == "Município" ~ "Região de saúde"
+        )
+        year <- case_when(
+          input_year == "TODOS" ~ "de 1996 à 2023",
+          TRUE ~ input_year
+        )
+        title <- paste0("Contagem de Consultas pré-natal por ",  loc, " em ", "2023")
+        gt_table <- tab_biv_final |>
+          gt::gt(locale = "pt") |>
+          gt::tab_header(title = title, preheader = NULL) |>
+          # gt::cols_label(
+          #   UF = "UF",
+          #   `Região` = "Região"
+          # ) |>
+          # gt::tab_style(
+          #   style = list(
+          #     cell_text(weight = "bold")
+          #   ),
+          #   locations = cells_body(
+          #     columns = c("Total_N", "Total_%")
+          #   )
+        # ) |>
+        # gt::opt_interactive(use_compact_mode = TRUE) |>
+        gt::tab_spanner_delim(
+          delim = "_"
+        ) |>
+          fmt_percent(ends_with("%"), decimals = 2)
+      })
+    }
+  })
+  ### Separando dados por filtros ----
+  #### Com UF, será filtrado o df que faz o join
 
   # Bivariada ----
+  ## Tabela para versão inicial ----
+
+  output$tabela_bivariada <- gt::render_gt({
+    tabela_bivariada <- readRDS("data/tabela_inicial_bivariada.rds")
+    title <- paste0("Contagem de Consultas pré-natal por Escolaridade da mãe em 2023")
+    gt_table <- tabela_bivariada |>
+      gt::gt(locale = "pt") |>
+      gt::tab_header(title = title, subtitle = "Escolaridade da mãe", preheader = NULL) |>
+      gt::tab_style(
+        style = list(
+          cell_text(weight = "bold")
+        ),
+        locations = cells_body(
+          columns = c("Total_N", "Total_%")
+        )
+      ) |>
+      # gt::opt_interactive(use_compact_mode = TRUE) |>
+      gt::tab_spanner_delim(
+        delim = "_"
+      ) |>
+      fmt_percent(ends_with("%"), decimals = 2)
+  })
 
   ### Separando dados por filtros ----
   #### Com UF, será filtrado o df que faz o join
-  df_sinasc_biv <- reactive({
-    year <- input$year
-    browser()
-    if(year != "TODOS"){
-      df_sinasc_filt <- df_sinasc |>
-        dplyr::filter(`_ANONASC` == year)
-    }
-
+  observeEvent(input$applyFilters, {
     # browser()
-    #### Brasil ----
-    if(input$abrang == "Brasil"){
-      df_sinasc_filt <- df_sinasc_filt
-    }
-    #### UF ----
-    if(input$abrang == "Unidade da federação"){
-      if(input$uf == "TODOS"){
-        df_sinasc_filt <- df_sinasc_filt
-      }else{
-        df_sinasc_filt <- df_sinasc_filt |>
-          dplyr::filter(`_UF` == input$uf)
-      }
-    }
-    #### Município ----
-    if(input$abrang == "Município"){
-      if(input$mun == "Selecione a UF"){
-        df_sinasc_filt <- df_sinasc_filt
-      }else{
-        df_sinasc_filt <- df_sinasc_filt |>
-          dplyr::filter(cod_mun == input$mun)
-      }
-    }
-    df_sinasc_filt |>
-      dplyr::select(all_of(nome_var_db))
-  })
-
-  ### Tabela bivariada ----
-  #### Filtrando variáveis selecionadas ----
-  df_sinasc_biv_vars <- reactive({
-    # browser()
-
-    ## Definindo variáveis selecionadas
+    input_year <- input$year
+    ## Definindo variáveis, nome das variáveis e nome no banco, e labels
     df_var1 <- df_vars_filter_biv |>
       dplyr::filter(var_all_biv == input$biv_var_1)
 
@@ -660,19 +807,6 @@ server <- function(session, input, output) {
     var2 <- df_var2 |>
       dplyr::pull(nome_var_db)
 
-    ## Separando dados por filtros selecionadas
-    df_sinasc_biv <- df_sinasc_biv()
-
-    # browser()
-
-    ## Selecionando variáveis e criando dados de contagem por variáveis selecionadas
-    df_sinasc_biv_vars_filt <- df_sinasc_biv |>
-      dplyr::select(!as.name(var1), !as.name(var2)) |>
-      dplyr::group_by(!!as.name(var1), !!as.name(var2)) |>
-      dplyr::summarise(count = n()) |>
-      dplyr::ungroup() |>
-      dplyr::collect()
-
     ## Labels de variáveis selecionadas
     labels_var1 <- labels |>
       dplyr::filter(variavel == var1) |>
@@ -683,188 +817,84 @@ server <- function(session, input, output) {
       dplyr::filter(variavel == var2) |>
       dplyr::select(-variavel) |>
       dplyr::rename(!!var2 := nivel)
-
-    ## Adicionando labels
-    df_sinasc_biv_vars_filt_lab <- df_sinasc_biv_vars_filt |>
-      dplyr::left_join(labels_var1) |>
-      dplyr::select(-!!as.name(var1), label) |>
-      # dplyr::mutate(CONSULTAS = ifelse(is.na(CONSULTAS), "99", CONSULTAS))
-      dplyr:::mutate(label = ifelse(is.na(label), "Inválido ou nulo", label)) |>
-      dplyr::rename(!!var1 := label) |>
-      dplyr::left_join(labels_var2) |>
-      dplyr:::mutate(label = ifelse(is.na(label), "Inválido ou nulo", label)) |>
-      dplyr::select(-!!var2, var2 = label) |>
-      dplyr::select(!!as.name(var1), var2, count) |>
-      dplyr::group_by(!!as.name(var1), var2) |>
-      dplyr::summarise(count = sum(count)) |>
-      dplyr::ungroup()
-
-    ### Com inválido na tabela e soma de totais (com inválido) ----
-    if(input$tabela_c_invalido){
-      ## Não utilizar mais a linha de total
-      # df_sinasc_biv_vars_filt_lab_total <- df_sinasc_biv_vars_filt_lab |>
-      #   dplyr::group_by(var2) |>
-      #   dplyr::summarise(count = sum(count)) |>
-      #   dplyr::ungroup() |>
-      #   dplyr::mutate(!!as.name(var1) := "Total") |>
-      #   dplyr::select(!!as.name(var1), var2, count) |>
-      #   dplyr::bind_rows(df_sinasc_biv_vars_filt_lab)
-
-      ## Removendo apenas a linha de inválido ou nulo
-      df_sinasc_biv_vars_filt_lab <- df_sinasc_biv_vars_filt_lab |>
-        dplyr::filter(!!as.name(var1) != "Inválido ou nulo")
-
-      df_sinasc_biv_vars_filt_lab_wider <- df_sinasc_biv_vars_filt_lab |>
-        tidyr::pivot_wider(names_from = var2, values_from = count, names_sort = FALSE)
-
-      df_sinasc_biv_col_invalid <- df_sinasc_biv_vars_filt_lab_wider |>
-        dplyr::select(`Inválido ou nulo`)
-
-      # sum(df_sinasc_biv_vars_filt_lab_wider[1, 2:7], na.rm = TRUE)
-      # sum(df_sinasc_biv_vars_filt_lab_wider$Total, na.rm = TRUE)
-      # sum_total <- df_sinasc_biv_vars_filt_lab_wider[-1, 1]
-      # sum_total <- df_sinasc_biv_vars_filt_lab_wider[1, 2:7]
-
-      df_sinasc_biv_vars_filt_lab_wider <- df_sinasc_biv_vars_filt_lab_wider |>
-        dplyr::select(-`Inválido ou nulo`) |>
-        dplyr::mutate(Total = rowSums(across(-!!as.name(var1))))
-
-    }
-    if(!input$tabela_c_invalido){
-      ### Sem inválido na tabela e soma de totais (com inválido)
-      df_sinasc_biv_vars_filt_lab_val <- df_sinasc_biv_vars_filt_lab |>
-        dplyr::filter(!!as.name(var1) != "Inválido ou nulo",
-                      var2 != "Inválido ou nulo")
-
-      ## Não vou mais usar a linha de total, só a coluna
-      # df_sinasc_biv_vars_filt_lab_val_total <- df_sinasc_biv_vars_filt_lab_val |>
-      #   dplyr::group_by(var2) |>
-      #   dplyr::summarise(count = sum(count)) |>
-      #   dplyr::ungroup() |>
-      #   dplyr::mutate(!!as.name(var1) := "Total") |>
-      #   dplyr::select(!!as.name(var1), var2, count) |>
-      #   dplyr::bind_rows(df_sinasc_biv_vars_filt_lab_val)
-
-
-      df_sinasc_biv_vars_filt_lab_wider <- df_sinasc_biv_vars_filt_lab_val |>
-        tidyr::pivot_wider(names_from = var2, values_from = count, names_sort = FALSE) |>
-        dplyr::mutate(Total = rowSums(across(-!!as.name(var1))))
-    }
-
-    ## Recebendo numa nova tabela os dados no formato wide
-    tabela_bivariada <- df_sinasc_biv_vars_filt_lab_wider
-
-    ## Ordenando colunas da segunda variável
-    new_order <- c(var1, labels_var2$label)
-    new_order <- c(new_order[new_order != "Inválido ou nulo"], "Total")
-
-    ## Removendo colunas que não aparecem (por não terem dados)
     # browser()
-    # if(length(new_order) != ncol(tabela_bivariada)){
-    #   new_oder <- new_order[new_order %in% colnames(tabela_bivariada)]
-    # }
+    #### Filtrando variáveis selecionadas ----
+    df_sinasc_filt <- func_applyFilters(df_sinasc, input_year, input$abrang,
+                                        input$uf, input$mun, nome_var_db)
+    #### Alterando para formato wide ----
+    df_sinasc_biv_wider <- func_sinasc_biv(
+      df_sinasc_filt, labels_var1, labels_var2, var1, var2,
+      var1_name, var2_name, input$tabela_c_invalido)
 
-    ## Reordenando e organizando a ordem
-    tabela_bivariada <- tabela_bivariada |>
-      dplyr::select(!!new_order) |>
-      dplyr::arrange(factor(!!as.name(var1), levels = labels_var1$label))
-
-    #### Calculando percentuais ----
-    tabela_bivariada_perc <- tabela_bivariada |>
-      mutate(across(-CONSULTAS, ~ round(.x / Total, 4), .names = "{.col}_%"))
-
-    ## Reordenando vetor, com novas colunas de percentual
-    cols_with_perc <- colnames(tabela_bivariada_perc)
-    new_order_perc <- new_order[1]
-    final_col_names <- var1_name
-
-    ## Criando vetor de ordenação e nome das colunas com percentual
-    for(i in 2:length(new_order)){
-      new_order_perc <- c(new_order_perc, paste0(cols_with_perc[i]),
-                          cols_with_perc[i+length(new_order)-1])
-      final_col_names <- c(final_col_names, paste0(cols_with_perc[i], "_N"),
-                           cols_with_perc[i+length(new_order)-1])
+    if(nrow(df_sinasc_biv_wider) == 0){
+      showModal(modalDialog(
+        title = "Não há dados disponíveis",
+        paste0("Não possuímos dados dados disponíveis na nossa base de dados para esta combinação de filtros (Ano e localidade) e variáveis (primeira e segunda variável).
+               Por favor, selecione outra combinação de filtros e variáveis."),
+        footer = modalButton("Fechar"),
+        easyClose = TRUE
+      ))
     }
+    if(nrow(df_sinasc_biv_wider) > 0){
+      #### Ordenando variáveis e adicionando (ou não) inválidos ----
+      tabela_bivariada <- func_sinasc_order_perc_inv(
+        df_sinasc_biv_wider, labels_var1, labels_var2, var1, var2,
+        var1_name, var2_name, input$tabela_c_invalido)
 
-    tabela_bivariada_perc <- tabela_bivariada_perc |>
-      dplyr::select(!!new_order_perc)
+      ## Criar a tabela gt ----
+      ### tabela gt de output com os dados de df_sinasc_apgar_idade_wide
+      output$tabela_bivariada <- gt::render_gt({
+        # browser()
+        title <- paste0("Contagem de ", var1_name, " por ", var2_name, " em ", input_year)
+        gt_table <- tabela_bivariada |>
+          gt::gt(locale = "pt") |>
+          gt::tab_header(title = title, subtitle = var2_name, preheader = NULL) |>
+          gt::tab_style(
+            style = list(
+              cell_text(weight = "bold")
+            ),
+            locations = cells_body(
+              columns = c("Total_N", "Total_%")
+            )
+          ) |>
+          # gt::opt_interactive(use_compact_mode = TRUE) |>
+          gt::tab_spanner_delim(
+            delim = "_"
+          ) |>
+          fmt_percent(ends_with("%"), decimals = 2)
 
-    tab_biv_final <- tabela_bivariada_perc
-    colnames(tab_biv_final) <- final_col_names
+        ### Salvar versão inicial ----
+        # saveRDS(tabela_bivariada, file = "data/tabela_inicial_bivariada.rds")
+        # gt::cols_label(
+        #   !!var1 := var1_name,
+        #   Total = md("**Total**")
+        # ) |>
+        # gt::tab_style(
+        #   style = list(
+        #     cell_text(weight = "bold")
+        #   ),
+        #   locations = cells_body(
+        #     rows = nrow(tab_biv_final)
+        #   )
+        # )
 
-    ## Adicionando coluna de inválido, no caso de tabela com inválido
-    if(input$tabela_c_invalido){
-      tab_biv_final <- bind_cols(tab_biv_final, df_sinasc_biv_col_invalid)
+        if(input$tabela_c_invalido){
+          gt_table <- gt_table |>
+            gt::cols_move_to_end(columns = "Inválido ou nulo") |>
+            gt::tab_style(
+              style = list(
+                cell_text(weight = "lighter", color = "darkgrey")
+              ),
+              locations = cells_body(
+                columns = "Inválido ou nulo"
+              )
+            )
+        }
+
+        gt_table
+      })
     }
-
-    tab_biv_final
   })
-
-  ## Criar uma tabela gt de output com os dados de df_sinasc_apgar_idade_wide
-  output$tabela_bivariada <- gt::render_gt({
-
-    tab_biv_final <- df_sinasc_biv_vars()
-    # browser()
-
-    df_var1 <- df_vars_filter_biv |>
-      dplyr::filter(var_all_biv == input$biv_var_1)
-
-    var1_name <- df_var1 |>
-      dplyr::pull(var_all_biv)
-
-    df_var2 <- df_vars_filter_biv |>
-      dplyr::filter(var_all_biv == input$biv_var_2)
-
-    var2_name <- df_var2 |>
-      dplyr::pull(var_all_biv)
-
-    title <- paste0("Contagem de ", var1_name, " por ", var2_name)
-    gt_table <- tab_biv_final |>
-      gt::gt(locale = "pt") |>
-      gt::tab_header(title = title, subtitle = var2_name, preheader = NULL) |>
-      gt::tab_style(
-        style = list(
-          cell_text(weight = "bold")
-        ),
-        locations = cells_body(
-          columns = c("Total_N", "Total_%")
-        )
-      ) |>
-      # gt::opt_interactive(use_compact_mode = TRUE) |>
-      gt::tab_spanner_delim(
-        delim = "_"
-      ) |>
-      fmt_percent(ends_with("%"), decimals = 2)
-      # gt::cols_label(
-      #   !!var1 := var1_name,
-      #   Total = md("**Total**")
-      # ) |>
-      # gt::tab_style(
-      #   style = list(
-      #     cell_text(weight = "bold")
-      #   ),
-      #   locations = cells_body(
-      #     rows = nrow(tab_biv_final)
-      #   )
-      # )
-
-    if(input$tabela_c_invalido){
-      gt_table <- gt_table |>
-        gt::cols_move_to_end(columns = "Inválido ou nulo") |>
-        gt::tab_style(
-          style = list(
-            cell_text(weight = "lighter", color = "darkgrey")
-          ),
-          locations = cells_body(
-            columns = "Inválido ou nulo"
-          )
-        )
-    }
-
-    gt_table
-  })
-
-
 }
 
 shinyApp(ui, server)
